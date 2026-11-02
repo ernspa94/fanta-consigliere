@@ -23,6 +23,8 @@ App che ogni giornata consiglia la formazione migliore per la nostra rosa, usand
 - Tutti e 3 i portieri sono del Napoli: ogni giornata va schierato chi gioca titolare tra Meret e Milinkovic-Savic.
 - 6 giocatori del Napoli in rosa: le partite del Napoli pesano molto sulla giornata.
 
+Repository: https://github.com/ernspa94/fanta-consigliere (pubblico). Il workflow `.github/workflows/consiglio.yml` ricalcola il consiglio ogni 2 ore (7–23 ora italiana) e fa un commit solo se cambia.
+
 ## Motore (engine/)
 
 Si lancia da `engine/` con `../.venv/bin/python -m fanta.consiglia` e salva il risultato in `output/consiglio.json`.
