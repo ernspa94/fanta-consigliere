@@ -4,3 +4,7 @@ __pycache__/
 .pytest_cache/
 data/segreti/
 data/voti/
+# Scritti solo dalle prove in locale (senza Supabase): non vanno nel repository pubblico
+output/consiglio.json
+output/storico/
+output/notifiche_inviate.json
