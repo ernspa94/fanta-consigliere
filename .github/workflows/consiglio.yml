@@ -6,6 +6,11 @@ on:
     # (sempre nelle 8 ore prima della scadenza, altrimenti ogni 2 ore di giorno).
     - cron: "*/15 * * * *"
   workflow_dispatch:
+    inputs:
+      prova:
+        description: "Manda solo una notifica di prova"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -24,7 +29,19 @@ jobs:
       - name: Serve ricalcolare?
         id: piano
         working-directory: engine
-        run: python3 -m fanta.pianifica
+        run: |
+          if [ "${{ inputs.prova }}" = "true" ]; then echo "esegui=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          python3 -m fanta.pianifica
+
+      - name: Notifica di prova
+        if: inputs.prova
+        working-directory: engine
+        env:
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          PUSH_ISCRIZIONI: ${{ secrets.PUSH_ISCRIZIONI }}
+        run: |
+          pip install -q pywebpush
+          python -m fanta.notifiche --prova
 
       - uses: actions/setup-python@v5
         if: steps.piano.outputs.esegui == 'true'

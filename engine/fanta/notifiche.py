@@ -1,6 +1,7 @@
 """Decide quali notifiche mandare confrontando il consiglio precedente con quello nuovo, e le invia.
 
 Uso:  python -m fanta.notifiche <consiglio_precedente.json>   (dalla cartella engine/)
+      python -m fanta.notifiche --prova                      (manda solo una notifica di prova)
 Variabili d'ambiente: VAPID_PRIVATE_KEY e PUSH_ISCRIZIONI (lista JSON di {nome, iscrizione}).
 Senza variabili stampa soltanto le notifiche che manderebbe.
 """
@@ -97,6 +98,9 @@ def invia(notifiche):
 
 
 if __name__ == "__main__":
+    if sys.argv[1:] == ["--prova"]:
+        invia([{"titolo": "Prova notifiche ✅", "testo": "Se leggi questo messaggio, gli avvisi del Fanta Consigliere funzionano."}])
+        sys.exit()
     prec_file = Path(sys.argv[1]) if len(sys.argv) > 1 else None
     prec = json.loads(prec_file.read_text(encoding="utf-8")) if prec_file and prec_file.stat().st_size else None
     nuovo = json.loads((ROOT / "output" / "consiglio.json").read_text(encoding="utf-8"))
