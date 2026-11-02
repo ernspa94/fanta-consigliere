@@ -1,0 +1,52 @@
+name: Aggiorna consiglio formazione
+
+on:
+  schedule:
+    # Ogni 2 ore dalle 7 alle 23 ora italiana (orari in UTC).
+    - cron: "0 6-22/2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: consiglio
+  cancel-in-progress: false
+
+jobs:
+  aggiorna:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Installa dipendenze
+        run: pip install -r requirements.txt
+
+      - name: Test regole della lega
+        working-directory: engine
+        run: python -m pytest -q tests
+
+      - name: Calcola il consiglio
+        working-directory: engine
+        run: python -m fanta.consiglia
+
+      - name: Salva se il consiglio è cambiato
+        run: |
+          # L'orario di aggiornamento cambia sempre: si confronta tutto il resto.
+          if git cat-file -e HEAD:output/consiglio.json 2>/dev/null && \
+             diff <(git show HEAD:output/consiglio.json | jq -S 'del(.aggiornato)') \
+                  <(jq -S 'del(.aggiornato)' output/consiglio.json) > /dev/null; then
+            echo "Nessuna novità."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add output
+          git commit -m "Consiglio giornata $(jq .giornata output/consiglio.json) aggiornato"
+          git push

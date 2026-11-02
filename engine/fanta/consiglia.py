@@ -78,6 +78,9 @@ def stampa(c):
 if __name__ == "__main__":
     consiglio = calcola()
     out = ROOT / "output"
-    out.mkdir(exist_ok=True)
-    (out / "consiglio.json").write_text(json.dumps(consiglio, ensure_ascii=False, indent=2), encoding="utf-8")
+    (out / "storico").mkdir(parents=True, exist_ok=True)
+    testo = json.dumps(consiglio, ensure_ascii=False, indent=2)
+    (out / "consiglio.json").write_text(testo, encoding="utf-8")
+    # Ultima versione per ogni giornata: servirà per misurare quanto indovina il modello.
+    (out / "storico" / f"giornata-{consiglio['giornata']:02d}.json").write_text(testo, encoding="utf-8")
     stampa(consiglio)

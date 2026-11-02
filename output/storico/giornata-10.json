@@ -1,0 +1,355 @@
+{
+  "aggiornato": "2026-11-02T09:53+00:00",
+  "giornata": 10,
+  "squadra": "Berlusca Dortmund",
+  "modulo": "4-3-3",
+  "titolari": [
+    {
+      "nome": "Meret",
+      "ruolo": "P",
+      "squadra": "napoli",
+      "avversario": "juventus",
+      "casa": false,
+      "p_voto": 0.91,
+      "fantavoto_se_gioca": 5.1,
+      "punti_attesi": 4.59,
+      "stato": "ok",
+      "nota": null
+    },
+    {
+      "nome": "Couto",
+      "ruolo": "D",
+      "squadra": "como",
+      "avversario": "venezia",
+      "casa": true,
+      "p_voto": 0.93,
+      "fantavoto_se_gioca": 6.3,
+      "punti_attesi": 5.8,
+      "stato": "ok",
+      "nota": null
+    },
+    {
+      "nome": "Belghali",
+      "ruolo": "D",
+      "squadra": "torino",
+      "avversario": "frosinone",
+      "casa": false,
+      "p_voto": 0.93,
+      "fantavoto_se_gioca": 6.2,
+      "punti_attesi": 5.74,
+      "stato": "ok",
+      "nota": null
+    },
+    {
+      "nome": "De Winter",
+      "ruolo": "D",
+      "squadra": "milan",
+      "avversario": "inter",
+      "casa": true,
+      "p_voto": 0.93,
+      "fantavoto_se_gioca": 5.77,
+      "punti_attesi": 5.36,
+      "stato": "ok",
+      "nota": null
+    },
+    {
+      "nome": "Dimarco",
+      "ruolo": "D",
+      "squadra": "inter",
+      "avversario": "milan",
+      "casa": false,
+      "p_voto": 0.66,
+      "fantavoto_se_gioca": 6.69,
+      "punti_attesi": 4.41,
+      "stato": "ok",
+      "nota": null
+    },
+    {
+      "nome": "Rabiot",
+      "ruolo": "C",
+      "squadra": "milan",
+      "avversario": "inter",
+      "casa": true,
+      "p_voto": 0.94,
+      "fantavoto_se_gioca": 7.28,
+      "punti_attesi": 6.8,
+      "stato": "ok",
+      "nota": null
+    },
+    {
+      "nome": "Adzic",
+      "ruolo": "C",
+      "squadra": "sassuolo",
+      "avversario": "fiorentina",
+      "casa": true,
+      "p_voto": 0.82,
+      "fantavoto_se_gioca": 7.5,
+      "punti_attesi": 6.19,
+      "stato": "ok",
+      "nota": null
+    },
+    {
+      "nome": "McTominay",
+      "ruolo": "C",
+      "squadra": "napoli",
+      "avversario": "juventus",
+      "casa": false,
+      "p_voto": 0.93,
+      "fantavoto_se_gioca": 6.63,
+      "punti_attesi": 6.17,
+      "stato": "ok",
+      "nota": null
+    },
+    {
+      "nome": "Varela G.",
+      "ruolo": "A",
+      "squadra": "monza",
+      "avversario": "bologna",
+      "casa": false,
+      "p_voto": 0.94,
+      "fantavoto_se_gioca": 8.58,
+      "punti_attesi": 8.07,
+      "stato": "ok",
+      "nota": null
+    },
+    {
+      "nome": "Douvikas",
+      "ruolo": "A",
+      "squadra": "como",
+      "avversario": "venezia",
+      "casa": true,
+      "p_voto": 0.94,
+      "fantavoto_se_gioca": 7.94,
+      "punti_attesi": 7.4,
+      "stato": "ok",
+      "nota": null
+    },
+    {
+      "nome": "Bowie",
+      "ruolo": "A",
+      "squadra": "sassuolo",
+      "avversario": "fiorentina",
+      "casa": true,
+      "p_voto": 0.74,
+      "fantavoto_se_gioca": 6.64,
+      "punti_attesi": 5.04,
+      "stato": "ok",
+      "nota": null
+    }
+  ],
+  "panchina": [
+    {
+      "nome": "Ederson D.S.",
+      "ruolo": "C",
+      "squadra": "atalanta",
+      "avversario": "parma",
+      "casa": true,
+      "p_voto": 0.88,
+      "fantavoto_se_gioca": 6.4,
+      "punti_attesi": 5.67,
+      "stato": "ok",
+      "nota": null
+    },
+    {
+      "nome": "Douglas Luiz",
+      "ruolo": "C",
+      "squadra": "juventus",
+      "avversario": "napoli",
+      "casa": true,
+      "p_voto": 0.94,
+      "fantavoto_se_gioca": 6.03,
+      "punti_attesi": 5.64,
+      "stato": "ok",
+      "nota": null
+    },
+    {
+      "nome": "Vojvoda",
+      "ruolo": "D",
+      "squadra": "udinese",
+      "avversario": "roma",
+      "casa": true,
+      "p_voto": 0.93,
+      "fantavoto_se_gioca": 5.69,
+      "punti_attesi": 5.27,
+      "stato": "ok",
+      "nota": null
+    },
+    {
+      "nome": "Tourè E.",
+      "ruolo": "A",
+      "squadra": "parma",
+      "avversario": "atalanta",
+      "casa": false,
+      "p_voto": 0.82,
+      "fantavoto_se_gioca": 5.99,
+      "punti_attesi": 4.84,
+      "stato": "ok",
+      "nota": null
+    },
+    {
+      "nome": "Dragusin",
+      "ruolo": "D",
+      "squadra": "fiorentina",
+      "avversario": "sassuolo",
+      "casa": false,
+      "p_voto": 0.83,
+      "fantavoto_se_gioca": 5.69,
+      "punti_attesi": 4.75,
+      "stato": "ok",
+      "nota": null
+    },
+    {
+      "nome": "Casadei",
+      "ruolo": "C",
+      "squadra": "torino",
+      "avversario": "frosinone",
+      "casa": false,
+      "p_voto": 0.56,
+      "fantavoto_se_gioca": 6.25,
+      "punti_attesi": 3.5,
+      "stato": "ok",
+      "nota": null
+    },
+    {
+      "nome": "Goncalves P.",
+      "ruolo": "C",
+      "squadra": "fiorentina",
+      "avversario": "sassuolo",
+      "casa": false,
+      "p_voto": 0.56,
+      "fantavoto_se_gioca": 5.94,
+      "punti_attesi": 3.32,
+      "stato": "ok",
+      "nota": null
+    },
+    {
+      "nome": "Contini",
+      "ruolo": "P",
+      "squadra": "napoli",
+      "avversario": "juventus",
+      "casa": false,
+      "p_voto": 0.05,
+      "fantavoto_se_gioca": 5.33,
+      "punti_attesi": 0.23,
+      "stato": "ok",
+      "nota": null
+    },
+    {
+      "nome": "Milinkovic-Savic V.",
+      "ruolo": "P",
+      "squadra": "napoli",
+      "avversario": "juventus",
+      "casa": false,
+      "p_voto": 0.0,
+      "fantavoto_se_gioca": null,
+      "punti_attesi": 0.0,
+      "stato": "infortunato",
+      "nota": "affaticamento muscolare alla gamba, out contro la Juventus"
+    },
+    {
+      "nome": "Bellanova",
+      "ruolo": "D",
+      "squadra": "atalanta",
+      "avversario": "parma",
+      "casa": true,
+      "p_voto": 0.0,
+      "fantavoto_se_gioca": null,
+      "punti_attesi": 0.0,
+      "stato": "infortunato",
+      "nota": "distrazione di basso grado dell'adduttore lungo dell’arto sinistro, rientro da metà novembre"
+    },
+    {
+      "nome": "Spinazzola",
+      "ruolo": "D",
+      "squadra": "napoli",
+      "avversario": "juventus",
+      "casa": false,
+      "p_voto": 0.0,
+      "fantavoto_se_gioca": null,
+      "punti_attesi": 0.0,
+      "stato": "infortunato",
+      "nota": "lesione di basso grado del bicipite femorale della coscia destra, rientro dalla metà di novembre"
+    },
+    {
+      "nome": "Chukwueze",
+      "ruolo": "C",
+      "squadra": "milan",
+      "avversario": "inter",
+      "casa": true,
+      "p_voto": 0.0,
+      "fantavoto_se_gioca": null,
+      "punti_attesi": 0.0,
+      "stato": "infortunato",
+      "nota": "problema all'anca sinistra, out contro Inter"
+    },
+    {
+      "nome": "Hojlund",
+      "ruolo": "A",
+      "squadra": "napoli",
+      "avversario": "juventus",
+      "casa": false,
+      "p_voto": 0.0,
+      "fantavoto_se_gioca": null,
+      "punti_attesi": 0.0,
+      "stato": "infortunato",
+      "nota": "sindrome influenzale, out contro la Juventus"
+    },
+    {
+      "nome": "Raspadori",
+      "ruolo": "A",
+      "squadra": "atalanta",
+      "avversario": "parma",
+      "casa": true,
+      "p_voto": 0.0,
+      "fantavoto_se_gioca": null,
+      "punti_attesi": 0.0,
+      "stato": "infortunato",
+      "nota": "distrazione muscolare di basso grado al bicipite femorale della coscia destra, rientro dall'inizio di novembre"
+    }
+  ],
+  "punti_attesi": 74.1,
+  "intervallo_80": [
+    65.5,
+    83.0
+  ],
+  "modificatore_atteso": 1.1,
+  "cambi_attesi": 1.2,
+  "prob_gol": {
+    "0": 0.102,
+    "1": 0.171,
+    "2": 0.233,
+    "3": 0.216,
+    "4": 0.144,
+    "5": 0.078
+  },
+  "alternative": [
+    {
+      "modulo": "4-3-3",
+      "punti_attesi": 74.1
+    },
+    {
+      "modulo": "4-4-2",
+      "punti_attesi": 73.9
+    },
+    {
+      "modulo": "5-3-2",
+      "punti_attesi": 73.6
+    },
+    {
+      "modulo": "3-4-3",
+      "punti_attesi": 73.5
+    },
+    {
+      "modulo": "3-5-2",
+      "punti_attesi": 73.3
+    },
+    {
+      "modulo": "4-5-1",
+      "punti_attesi": 72.6
+    },
+    {
+      "modulo": "5-4-1",
+      "punti_attesi": 72.4
+    }
+  ]
+}
