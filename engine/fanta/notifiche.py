@@ -11,8 +11,9 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
-from .fonti import ROMA
+ROMA = ZoneInfo("Europe/Rome")
 
 ROOT = Path(__file__).resolve().parents[2]
 FILE_INVIATE = ROOT / "output" / "notifiche_inviate.json"
