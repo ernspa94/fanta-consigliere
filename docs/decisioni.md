@@ -33,6 +33,7 @@ Pubblicata da `.github/workflows/pages.yml` quando cambia `app/`. Il consiglio l
 ## Notifiche
 
 - `engine/fanta/notifiche.py` confronta il consiglio precedente con il nuovo e manda: consiglio pronto (nuova giornata), formazione cambiata (chi entra/esce e perché), promemoria 3 ore e 30 minuti prima della consegna (una volta sola, registrati in `output/notifiche_inviate.json`).
+- Notifica di prova: GitHub → Actions → "Aggiorna consiglio formazione" → Run workflow con "Manda solo una notifica di prova" (oppure `gh workflow run consiglio.yml -f prova=true`).
 - `engine/fanta/pianifica.py`: il workflow parte ogni 15 minuti ma ricalcola solo nelle 8 ore prima della scadenza, altrimenti ogni 2 ore di giorno.
 - Segreti del repository: `VAPID_PRIVATE_KEY` (chiave di firma; copia locale in `data/segreti/`, ignorata da git) e `PUSH_ISCRIZIONI` (lista JSON dei codici che l'app mostra dopo "Attiva notifiche").
 - La scadenza è la prima partita della giornata meno 1 minuto, letta da `/serie-a/calendario/N/2026-27`. Se la giornata delle probabili è già iniziata, il consiglio passa in stato `in_attesa` sulla successiva.
