@@ -18,6 +18,7 @@ ROMA = ZoneInfo("Europe/Rome")
 ROOT = Path(__file__).resolve().parents[2]
 FILE_INVIATE = ROOT / "output" / "notifiche_inviate.json"
 URL_APP = "https://ernspa94.github.io/fanta-consigliere/"
+CONTATTO_VAPID = "https://ernspa94.github.io"  # il servizio push vuole un mailto: o un'origine senza percorso
 PROMEMORIA = [("30m", 30, "Mancano 30 minuti"), ("3h", 180, "Mancano 3 ore")]  # dal più urgente
 
 
@@ -91,7 +92,7 @@ def invia(notifiche):
         for persona in iscrizioni:
             try:
                 webpush(persona["iscrizione"], dati, vapid_private_key=chiave,
-                        vapid_claims={"sub": URL_APP}, ttl=6 * 3600)
+                        vapid_claims={"sub": CONTATTO_VAPID}, ttl=6 * 3600)
                 print(f"   inviata a {persona['nome']}")
             except WebPushException as e:
                 # 404/410: iscrizione scaduta, va rifatta dall'app. Non blocca le altre.
