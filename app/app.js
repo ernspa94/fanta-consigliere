@@ -124,6 +124,14 @@ for (const b of document.querySelectorAll("#schede-home button")) {
   b.addEventListener("click", () => vai(b.dataset.home === "asta" ? "#/asta" : "#/"));
 }
 
+// Iniziali della squadra su un colore che dipende dal nome (sempre lo stesso per la stessa squadra).
+const COLORI_SQUADRE = ["#0b5d3b", "#2f7fd1", "#c2410c", "#7c3aed", "#b91c1c", "#0f766e", "#a16207", "#be185d"];
+function avatar(nome) {
+  const iniziali = nome.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join("");
+  const h = [...nome].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+  return el("span", { class: "avatar", style: `background:${COLORI_SQUADRE[h % COLORI_SQUADRE.length]}` }, iniziali);
+}
+
 function mostraHome(scheda = "squadre") {
   squadra = bozza = null;
   $("home").hidden = false;
@@ -133,13 +141,15 @@ function mostraHome(scheda = "squadre") {
   if (scheda === "asta") disegnaAsta();
   $("squadra").hidden = true;
   $("indietro").hidden = $("ricarica").hidden = true;
+  $("logo").hidden = false;
   $("titolo").textContent = "Fanta Consigliere";
-  $("sottotitolo").textContent = "Le formazioni consigliate per le tue squadre";
+  $("sottotitolo").textContent = "Il tuo assistente di fantacalcio";
   const lista = mieSquadre();
   $("nessuna-squadra").hidden = lista.length > 0;
   $("mie-squadre").replaceChildren(...lista.map((s) =>
     el("li", {},
       el("button", { onclick: () => vai(`#/s/${s.codice}`) },
+        avatar(s.nome),
         el("span", { class: "info" }, el("div", { class: "nome-riga" }, s.nome), el("div", { class: "sotto" }, s.lega)),
         el("span", { class: "freccia" }, "›")))));
   if (!C.SUPABASE_URL) mostraErrore("App in aggiornamento: il database non è ancora collegato.");
@@ -180,6 +190,7 @@ async function apriSquadra(codice, scheda) {
   $("home").hidden = true;
   $("squadra").hidden = false;
   $("indietro").hidden = $("ricarica").hidden = false;
+  $("logo").hidden = true;
   if (!squadra || squadra.codice !== codice) {
     squadra = await rpc("leggi_squadra", { p_codice: codice });
     bozza = clona(squadra);
@@ -333,13 +344,17 @@ function numeriAsta(g) {
 function rigaAsta(g) {
   const n = numeriAsta(g);
   const avviso = g.stato ? ` · ⚠ ${g.stato}` : "";
-  const dettagli = ctxAsta.modo === "zero"
-    ? (ctxAsta.s.liberi[g.ruolo] > 0 ? `max ${n.max} · probabile ${n.probabile} · ${n.giudizio}` : `ruolo completo · probabile ${n.probabile}`)
+  const zero = ctxAsta.modo === "zero", libero = ctxAsta.s.liberi[g.ruolo] > 0;
+  const dettagli = zero
+    ? (libero ? `max ${n.max} · probabile ${n.probabile}` : `ruolo completo · probabile ${n.probabile}`)
     : `${n.max ? `max ${n.max} · ` : ""}mercato ${n.mercato ?? "–"}`;
+  const etichetta = zero && libero
+    ? el("span", { class: `giudizio ${n.giudizio === "prezzo giusto" ? "giusto" : n.giudizio}` }, n.giudizio) : null;
   return el("li", {},
     el("button", { onclick: () => apriGiocatoreAsta(g) },
       badgeRuolo(g.ruolo),
-      infoRiga(g.nome, `${nomeSquadra(g.squadra)} · ${dettagli}${avviso}`),
+      el("span", { class: "info" }, el("div", { class: "nome-riga" }, g.nome),
+        el("div", { class: "sotto" }, `${nomeSquadra(g.squadra)} · ${dettagli}${avviso}`), etichetta),
       el("span", { class: "guadagno" }, segno(n.guad.punti), el("small", {}, "a giornata"))));
 }
 
@@ -697,7 +712,7 @@ function apriDettaglio(g) {
   $("dettaglio").showModal();
 }
 
-const chip = (g) => el("button", { class: "giocatore", onclick: () => apriDettaglio(g) },
+const chip = (g) => el("button", { class: `giocatore ruolo-${g.ruolo}`, onclick: () => apriDettaglio(g) },
   el("span", { class: "nome" }, g.nome),
   el("span", { class: "avv" }, partita(g)),
   el("span", { class: `badge ${classeVoto(g.p_voto)}` }, pct(g.p_voto)));
@@ -772,7 +787,7 @@ function mostraFormazione(c, f) {
   prob[prob.length - 1] += Math.max(0, 1 - prob.reduce((a, b) => a + b, 0));
   const max = Math.max(...prob);
   $("gol").replaceChildren(...prob.map((p, i) =>
-    el("div", { class: "colonna" },
+    el("div", { class: p === max ? "colonna massima" : "colonna" },
       el("span", { class: "pct" }, pct(p)),
       el("div", { class: "barra", style: `height:${(p / max) * 70}%` }),
       el("span", { class: "n" }, i === prob.length - 1 ? `${i}+` : `${i}`))));
