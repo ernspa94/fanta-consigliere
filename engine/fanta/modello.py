@@ -33,6 +33,10 @@ USA_RIGORISTI = True
 QUOTA_RIGORI = (0.85, 0.10, 0.05)  # quanti rigori della squadra tira il 1°, 2°, 3° rigorista
 CONVERSIONE_RIGORI = 0.78           # media di Serie A
 PRIOR_PARTITE_RIGORI = 15
+# Seconda fonte (Sky Sport): probabilità di partire titolare per ciascuna voce e peso di Fantacalcio.it.
+P_SKY = {"titolare": 0.9, "dubbio": 0.55, "riserva": 0.08}
+P_SKY_NON_IN_LISTA = 0.05
+PESO_FANTACALCIO = 0.6  # ha le percentuali, Sky solo titolare/riserva
 # Probabilità di entrare dalla panchina (e prendere voto) se non si parte titolari.
 INGRESSO_DA_PANCHINA = {"P": 0.01, "D": 0.25, "C": 0.40, "A": 0.45}
 
@@ -84,6 +88,51 @@ def _ristretto(valore_corr, pv_corr, valore_prec, pv_prec, prior):
 def _tasso(totale_corr, pv_corr, totale_prec, pv_prec, prior):
     return (totale_corr + PESO_STAGIONE_PREC * totale_prec + prior * PRIOR_PARTITE) / (
         pv_corr + PESO_STAGIONE_PREC * pv_prec + PRIOR_PARTITE)
+
+
+def probabilita_titolare(prob, sky, sky_copre_la_squadra):
+    """Probabilità di partire titolare dalle due fonti.
+
+    prob: voce delle probabili di Fantacalcio.it (con % di titolarità) o None;
+    sky: {"sky": titolare|dubbio|riserva|squalificato|indisponibile, "ufficiale": bool} o None.
+    Ritorna (probabilità titolare, quota della probabilità di entrare dalla panchina, stato, nota).
+    """
+    fuori_fc = prob is not None and prob["stato"] != "ok"
+    fuori_sky = sky is not None and sky["sky"] in ("squalificato", "indisponibile")
+    nota_fc = (prob or {}).get("nota")
+
+    if sky and sky["ufficiale"]:  # formazioni ufficiali: decidono loro
+        if sky["sky"] in ("titolare", "dubbio"):
+            return 0.99, 1.0, "ok", "titolare nella formazione ufficiale"
+        if fuori_fc or fuori_sky:
+            return 0.0, 0.0, prob["stato"] if fuori_fc else sky["sky"], nota_fc
+        return 0.0, 1.0, "ok", "in panchina nella formazione ufficiale"
+
+    if fuori_fc and fuori_sky:
+        return 0.0, 0.0, prob["stato"], nota_fc
+    if fuori_fc or fuori_sky:
+        stato = prob["stato"] if fuori_fc else sky["sky"]
+        altra_lo_da_titolare = (sky or {}).get("sky") == "titolare" if fuori_fc else (prob or {}).get("lista") == "titolare"
+        if altra_lo_da_titolare:
+            fonte = "Fantacalcio.it" if fuori_fc else "Sky"
+            return 0.3 * AFFIDABILITA_TITOLARE, 0.5, "in dubbio", f"{stato} per {fonte}, titolare per l'altra fonte" + (
+                f" ({nota_fc})" if nota_fc else "")
+        return 0.0, 0.0, stato, nota_fc
+
+    p_fc = prob["pct_titolare"] if prob else None
+    p_sky = P_SKY[sky["sky"]] if sky else (P_SKY_NON_IN_LISTA if sky_copre_la_squadra else None)
+    if p_fc is None and p_sky is None:
+        return 0.02, 0.25, "non in lista", "non compare nelle probabili formazioni"
+    if p_fc is None:
+        p = p_sky
+    elif p_sky is None:
+        p = p_fc
+    else:
+        p = PESO_FANTACALCIO * p_fc + (1 - PESO_FANTACALCIO) * p_sky
+    nota = None
+    if p_fc is not None and p_sky is not None and abs(p_fc - p_sky) >= 0.5:
+        nota = f"fonti in disaccordo: Fantacalcio.it {round(p_fc * 100)}%, Sky {sky['sky'] if sky else 'non lo cita'}"
+    return p * AFFIDABILITA_TITOLARE, 1.0 if p_fc is not None or sky else 0.25, "ok", nota
 
 
 def rigoristi_dalle_statistiche(stat, stat_prec):
@@ -140,6 +189,7 @@ def parametri_giocatori(rosa, dati):
     forza, media = forza_squadre(dati["stat"], dati["stat_prec"], partite_giocate)
     ctx = contesto_partite(prob["partite"], forza, media)
 
+    sky = dati.get("sky") or {"giocatori": {}, "squadre": set()}
     rigoristi = dati.get("rigoristi") or rigoristi_dalle_statistiche(dati["stat"], dati["stat_prec"])
     rigori_squadra, rigori_medi = rigori_per_partita(dati["stat"], dati["stat_prec"], partite_giocate)
 
@@ -163,17 +213,18 @@ def parametri_giocatori(rosa, dati):
         # Probabilità di partire titolare e di entrare dalla panchina.
         presenze = s1["pv"] / partite_giocate if partite_giocate else 0.5
         ingresso = INGRESSO_DA_PANCHINA[ruolo] * min(1.0, max(0.3, presenze * 1.2))
+        info_sky = sky["giocatori"].get(pid)
+        p["fonti"] = {"fantacalcio": None if info_prob is None else
+                      (info_prob["pct_titolare"] if info_prob["stato"] == "ok" else info_prob["stato"]),
+                      "sky": info_sky["sky"] if info_sky else None,
+                      "ufficiale": bool(info_sky and info_sky["ufficiale"])}
         if c is None:
             p_tit, ingresso, p["stato"] = 0.0, 0.0, "non gioca"
-        elif info_prob is None:
-            p_tit, ingresso = 0.02, ingresso * 0.25
-            p["stato"], p["nota"] = "non in lista", "non compare nelle probabili formazioni"
-        elif info_prob["stato"] != "ok":
-            p_tit, ingresso = 0.0, 0.0
-            p["stato"], p["nota"] = info_prob["stato"], info_prob.get("nota")
         else:
-            p_tit = info_prob["pct_titolare"] * AFFIDABILITA_TITOLARE
-            p["lista"] = info_prob["lista"]
+            p_tit, quota_ingresso, p["stato"], p["nota"] = probabilita_titolare(
+                info_prob, info_sky, squadra in sky["squadre"])
+            ingresso *= quota_ingresso
+            p["lista"] = (info_prob or {}).get("lista")
         p["p_titolare"] = p_tit
         p["p_ingresso"] = ingresso
         p["p_voto"] = p_tit * 0.97 + (1 - p_tit) * ingresso

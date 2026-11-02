@@ -1,5 +1,7 @@
 """Sceglie modulo, titolari e ordine della panchina che massimizzano i punti attesi."""
 
+import numpy as np
+
 from .regole import punteggio
 
 TOLLERANZA = 0.05  # differenze di punti attesi più piccole di così sono rumore
@@ -26,8 +28,13 @@ def migliore_formazione(giocatori, ha_voto, voto, fv, lega):
     valore = fv.mean(axis=0)  # fantapunti attesi del singolo, contando anche il rischio di non giocare
     per_ruolo = {r: sorted((i for i, x in enumerate(ruoli) if x == r), key=lambda i: -valore[i]) for r in "PDCA"}
 
-    def media(tit, pan):
-        return punteggio(tit, pan, ruoli, ha_voto, voto, fv, lega)[0].mean()
+    def totali(tit, pan):
+        return punteggio(tit, pan, ruoli, ha_voto, voto, fv, lega)[0]
+
+    def confronta(nuovo, vecchio):
+        """Differenza media tra due formazioni sugli stessi scenari, e la soglia oltre cui non è rumore."""
+        d = nuovo - vecchio
+        return d.mean(), max(TOLLERANZA, 2 * d.std() / np.sqrt(len(d)))
 
     risultati = []
     for modulo in lega["moduli"]:
@@ -35,10 +42,11 @@ def migliore_formazione(giocatori, ha_voto, voto, fv, lega):
         if len(per_ruolo["P"]) < 1 or len(per_ruolo["D"]) < d or len(per_ruolo["C"]) < c or len(per_ruolo["A"]) < a:
             continue  # la rosa non ha abbastanza giocatori per questo modulo
         tit, pan = _formazione(modulo, valore, per_ruolo)
-        migliore = media(tit, pan)
+        migliore = totali(tit, pan)
         # Ricerca locale: prova a scambiare ogni titolare con un panchinaro dello stesso ruolo.
-        # A parità di punti (entro TOLLERANZA) preferisce il giocatore che vale di più da solo:
-        # altrimenti potrebbe tenere titolare un infortunato "tanto entra il panchinaro".
+        # Si cambia solo se il guadagno supera il rumore della simulazione; a parità preferisce
+        # il giocatore che vale di più da solo (altrimenti potrebbe tenere titolare un incerto
+        # "tanto se non gioca entra il panchinaro", che in media vale uguale ma è controintuitivo).
         migliorato, giri = True, 0
         while migliorato and giri < 50:
             migliorato, giri = False, giri + 1
@@ -49,16 +57,17 @@ def migliore_formazione(giocatori, ha_voto, voto, fv, lega):
                     t2, p2 = tit.copy(), pan.copy()
                     t2[s], p2[k] = pan[k], tit[s]
                     t2, p2 = _ordina(t2, p2, valore, ruoli)
-                    m = media(t2, p2)
-                    meglio = m > migliore + TOLLERANZA
-                    pari_ma_piu_forte = m > migliore - TOLLERANZA and valore[pan[k]] > valore[tit[s]] + 0.1
+                    t = totali(t2, p2)
+                    diff, soglia = confronta(t, migliore)
+                    meglio = diff > soglia
+                    pari_ma_piu_forte = diff > -soglia and valore[pan[k]] > valore[tit[s]] + 0.1
                     if meglio or pari_ma_piu_forte:
-                        tit, pan, migliore, migliorato = t2, p2, m, True
+                        tit, pan, migliore, migliorato = t2, p2, t, True
                         break
                 if migliorato:
                     break
         tit, pan = _ordina(tit, pan, valore, ruoli)
-        risultati.append({"modulo": modulo, "titolari": tit, "panchina": pan, "media": migliore})
+        risultati.append({"modulo": modulo, "titolari": tit, "panchina": pan, "media": float(migliore.mean())})
 
     if not risultati:
         raise ValueError("Con questa rosa non si può schierare nessuno dei moduli ammessi")

@@ -79,6 +79,13 @@ Per ogni giornata si ricostruiscono le statistiche fino alla giornata prima e si
 - Taratura sul rango e non sull'errore: minimizzare l'errore "appiattisce" le previsioni e peggiora l'ordine dei giocatori.
 - Rilanciare: `../.venv/bin/python -m fanta.banco_prova` dalla cartella `engine/` (prima volta: scarica ~90 pagine di voti, poi resta in `data/voti/`).
 
+### Seconda fonte: Sky Sport (`fanta/sky.py`)
+
+- Legge da sport.sky.it titolari, riserve, in dubbio, squalificati e indisponibili, e le formazioni ufficiali quando escono (circa un'ora prima della partita).
+- I nomi si abbinano agli id di Fantacalcio.it squadra per squadra (link della scheda Sky, cognome, iniziale, piccoli refusi); i non riconosciuti sono quasi sempre ragazzi della Primavera fuori dal listone.
+- Combinazione (`modello.probabilita_titolare`): formazioni ufficiali decidono (titolare 99%); altrimenti 60% Fantacalcio.it + 40% Sky; se una fonte lo dà fuori e l'altra titolare diventa "in dubbio" (30%). Pesi scelti a ragione, non tarati: per tararli serve lo storico delle probabili, che si accumula da ora.
+- Se Sky non risponde o è su un'altra giornata si usa solo Fantacalcio.it.
+
 Limiti noti: niente quote dei bookmaker (nessuna fonte gratuita affidabile); forza squadre non corretta per gli avversari affrontati; la probabilità di giocare viene solo dalle probabili (la sua precisione si potrà misurare con lo storico dei consigli).
 
 ## Regole che contano per l'algoritmo

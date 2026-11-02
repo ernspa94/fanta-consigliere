@@ -151,14 +151,34 @@ def inizio_giornata(giornata, stagione="2026-27"):
     return datetime.fromisoformat(f"{data}T{ora}").replace(tzinfo=ROMA)
 
 
+def carica_sky(giornata, listone):
+    """Probabili/ufficiali di Sky abbinate agli id, solo se riguardano la stessa giornata.
+    Se Sky non risponde o cambia pagina si va avanti con la sola Fantacalcio.it."""
+    from . import sky
+    try:
+        dati = sky.leggi(sky.scarica())
+    except Exception as e:
+        print(f"Sky non disponibile: {e}")
+        return None
+    if dati["giornata"] != giornata:
+        print(f"Sky è sulla giornata {dati['giornata']}, Fantacalcio.it sulla {giornata}: Sky ignorata")
+        return None
+    giocatori, sconosciuti = sky.abbina(dati, listone)
+    if sconosciuti:
+        print(f"Sky: {len(sconosciuti)} nomi non riconosciuti (di solito Primavera): {', '.join(sconosciuti[:10])}")
+    return {"giocatori": giocatori, "squadre": set(dati["squadre"])}
+
+
 def carica_tutto(stagione="2026-27", stagione_prec="2025-26"):
-    return {
+    dati = {
         "probabili": leggi_probabili(scarica("/probabili-formazioni-serie-a")),
         "stat": leggi_statistiche(scarica(f"/statistiche-serie-a/{stagione}", max_eta_min=360)),
         "stat_prec": leggi_statistiche(scarica(f"/statistiche-serie-a/{stagione_prec}", max_eta_min=60 * 24 * 30)),
         "rigoristi": leggi_rigoristi(scarica("/rigoristi-serie-a", max_eta_min=360)),
         "listone": leggi_listone(scarica("/quotazioni-fantacalcio", max_eta_min=360)),
     }
+    dati["sky"] = carica_sky(dati["probabili"]["giornata"], dati["listone"])
+    return dati
 
 
 if __name__ == "__main__":

@@ -90,6 +90,7 @@ def calcola(squadra, dati, giornata, n_simulazioni=4000):
             "punti_attesi": round(float(valore[i]), 2),
             "stato": g["stato"], "nota": g["nota"],
             "rigorista": g.get("rigorista"),
+            "fonti": g.get("fonti"),
         }
 
     soglie = lega["scontri_diretti"]["soglie_gol"]

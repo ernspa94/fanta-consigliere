@@ -400,8 +400,20 @@ function apriDettaglio(g) {
   $("d-fv").textContent = num(g.fantavoto_se_gioca);
   $("d-attesi").textContent = num(g.punti_attesi, 2);
   const righe = [];
+  const f = g.fonti;
+  if (f?.ufficiale) {
+    righe.push(f.sky === "titolare" || f.sky === "dubbio" ? "Titolare nella formazione ufficiale." : "Non titolare nella formazione ufficiale.");
+  } else if (f) {
+    const fc = typeof f.fantacalcio === "number" ? pct(f.fantacalcio) : f.fantacalcio || "non lo cita";
+    const sky = { titolare: "titolare", dubbio: "in dubbio", riserva: "in panchina", squalificato: "squalificato",
+                  indisponibile: "indisponibile" }[f.sky] || "non lo cita";
+    righe.push(`Probabili: Fantacalcio.it ${fc} · Sky ${sky}.`);
+  }
   if (g.rigorista) righe.push(`Rigorista n°${g.rigorista} della squadra.`);
-  if (g.nota) righe.push(`${g.stato[0].toUpperCase() + g.stato.slice(1)}: ${g.nota}`);
+  if (g.nota && !(f?.ufficiale && g.stato === "ok")) {
+    const nota = `${g.nota[0].toUpperCase()}${g.nota.slice(1)}`;
+    righe.push(g.stato === "ok" ? `${nota}.` : `${g.stato[0].toUpperCase() + g.stato.slice(1)}: ${g.nota}`);
+  }
   $("d-nota").hidden = righe.length === 0;
   $("d-nota").textContent = righe.join(" ");
   $("dettaglio").showModal();
