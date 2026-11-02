@@ -1,9 +1,12 @@
 // Legge output/ direttamente dal repository: si aggiorna appena il workflow fa un commit,
 // senza dover ripubblicare l'app.
-const OUTPUT = "https://raw.githubusercontent.com/ernspa94/fanta-consigliere/main/output/";
+// Con ?locale legge ../output/ (per provare l'app con dati di prova servendo la cartella del progetto).
+const OUTPUT = new URLSearchParams(location.search).has("locale")
+  ? "../output/" : "https://raw.githubusercontent.com/ernspa94/fanta-consigliere/main/output/";
 const VAPID_PUBBLICA = "BKxnXkLdxzZeb3RJUsDxEcJpSKHgkDbZt0mHGXa6cjIw0y0nSHNisqKBPiWrnKlYXPVDwLXrG3E2ljxq_v0Hj5I";
 
 let attuale = null; // consiglio della prossima giornata
+let attivo = null;  // consiglio mostrato ora (prossima giornata o storico)
 
 const $ = (id) => document.getElementById(id);
 const sigla = (sq) => (sq || "").slice(0, 3).toUpperCase();
@@ -77,6 +80,7 @@ function mostraScadenza(c, storico) {
 }
 
 function mostra(c, storico = false) {
+  attivo = { c, storico };
   $("squadra").textContent = c.squadra;
   $("sottotitolo").textContent = `Giornata ${c.giornata} · Fanta Lignano`;
   $("contenuto").hidden = false;
@@ -95,9 +99,28 @@ function mostra(c, storico = false) {
     return;
   }
 
-  $("modulo").textContent = c.modulo;
-  $("punti").textContent = num(c.punti_attesi);
-  $("intervallo").textContent = `8 volte su 10 tra ${num(c.intervallo_80[0])} e ${num(c.intervallo_80[1])}`;
+  mostraFormazione(c, c);
+  $("aggiornato").textContent = `Consiglio cambiato l'ultima volta ${dataOra(c.aggiornato)}`;
+}
+
+// Mostra la migliore formazione di un altro modulo (le alternative contengono solo i nomi).
+function mostraModulo(c, modulo) {
+  const a = c.alternative.find((x) => x.modulo === modulo);
+  if (!a || !a.titolari) return;
+  const scheda = Object.fromEntries([...c.titolari, ...c.panchina].map((g) => [g.nome, g]));
+  mostraFormazione(c, { ...a, titolari: a.titolari.map((n) => scheda[n]), panchina: a.panchina.map((n) => scheda[n]) });
+  document.querySelector(".riepilogo").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function mostraFormazione(c, f) {
+  const consigliato = f.modulo === c.modulo;
+  $("modulo").textContent = f.modulo;
+  $("modulo-nota").textContent = consigliato ? "consigliato" : `consigliato: ${c.modulo}`;
+  $("punti").textContent = num(f.punti_attesi);
+  $("intervallo").textContent = f.intervallo_80
+    ? `8 volte su 10 tra ${num(f.intervallo_80[0])} e ${num(f.intervallo_80[1])}` : "";
+  // Il resto della funzione usa `c` per i dati della formazione mostrata.
+  c = { ...c, ...f };
 
   // Probabilità di 0, 1, …, 5+ gol.
   const prob = Object.values(c.prob_gol);
@@ -126,9 +149,10 @@ function mostra(c, storico = false) {
         el("div", { class: "sotto" }, g.nota || g.stato)))));
 
   $("alternative").replaceChildren(...c.alternative.map((a) =>
-    el("li", { class: a.modulo === c.modulo ? "scelto" : "" }, el("span", {}, a.modulo), el("span", {}, num(a.punti_attesi)))));
-
-  $("aggiornato").textContent = `Consiglio cambiato l'ultima volta ${dataOra(c.aggiornato)}`;
+    el("li", { class: a.modulo === f.modulo ? "scelto" : "" },
+      el("button", { onclick: () => (a.modulo === attivo.c.modulo ? mostra(attivo.c, attivo.storico) : mostraModulo(attivo.c, a.modulo)) },
+        el("span", {}, a.modulo), el("span", {}, num(a.punti_attesi))))));
+  $("moduli-aiuto").hidden = !c.alternative.some((a) => a.titolari);
 }
 
 async function scarica(percorso) {

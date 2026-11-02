@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import fonti, modello, rosa as R, simulazione, ottimizzatore
+from . import fonti, modello, ottimizzatore, regole, rosa as R, simulazione
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -55,9 +55,22 @@ def calcola(n_simulazioni=4000, adesso=None):
             "stato": g["stato"], "nota": g["nota"],
         }
 
-    tot = best["totale"]
     soglie = lega["scontri_diretti"]["soglie_gol"]
-    gol = np.searchsorted(soglie, tot, side="right")
+    ruoli = [g["ruolo"] for g in giocatori]
+
+    def formazione(f):
+        """Riepilogo di una formazione (quella consigliata o la migliore di un altro modulo)."""
+        tot, mod, cambi = regole.punteggio(f["titolari"], f["panchina"], ruoli, ha_voto, voto, fv, lega)
+        gol = np.searchsorted(soglie, tot, side="right")
+        return {
+            "modulo": f["modulo"],
+            "punti_attesi": round(float(tot.mean()), 1),
+            "intervallo_80": [round(float(np.percentile(tot, 10)), 1), round(float(np.percentile(tot, 90)), 1)],
+            "modificatore_atteso": round(float(mod.mean()), 2),
+            "cambi_attesi": round(float(cambi.mean()), 1),
+            "prob_gol": {str(k): round(float((gol == k).mean()), 3) for k in range(0, 6)},
+        }
+
     return {
         "stato": "pronto",
         "aggiornato": datetime.now(timezone.utc).isoformat(timespec="minutes"),
@@ -65,15 +78,13 @@ def calcola(n_simulazioni=4000, adesso=None):
         "squadra": rosa["squadra"],
         "inizio": inizio.isoformat() if inizio else None,
         "scadenza": (inizio - timedelta(minutes=1)).isoformat() if inizio else None,
-        "modulo": best["modulo"],
+        **formazione(best),
         "titolari": [scheda(i) for i in best["titolari"]],
         "panchina": [scheda(i) for i in best["panchina"]],
-        "punti_attesi": round(float(tot.mean()), 1),
-        "intervallo_80": [round(float(np.percentile(tot, 10)), 1), round(float(np.percentile(tot, 90)), 1)],
-        "modificatore_atteso": round(float(best["modificatore"].mean()), 2),
-        "cambi_attesi": round(float(best["cambi"].mean()), 1),
-        "prob_gol": {str(k): round(float((gol == k).mean()), 3) for k in range(0, 6)},
-        "alternative": [{"modulo": a["modulo"], "punti_attesi": round(float(a["media"]), 1)} for a in alternative],
+        # La migliore formazione per ogni modulo: l'app le mostra se si sceglie un altro modulo.
+        "alternative": [{**formazione(a),
+                         "titolari": [giocatori[i]["nome"] for i in a["titolari"]],
+                         "panchina": [giocatori[i]["nome"] for i in a["panchina"]]} for a in alternative],
     }
 
 
