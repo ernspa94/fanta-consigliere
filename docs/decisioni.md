@@ -81,9 +81,15 @@ Per ogni giornata si ricostruiscono le statistiche fino alla giornata prima e si
 
 ### Seconda fonte: Sky Sport (`fanta/sky.py`)
 
-- Legge da sport.sky.it titolari, riserve, in dubbio, squalificati e indisponibili, e le formazioni ufficiali quando escono (circa un'ora prima della partita).
+- Legge da sport.sky.it titolari, riserve, in dubbio, squalificati e indisponibili. Attenzione: sulla pagina delle probabili la scritta "Sono disponibili le formazioni ufficiali" è solo un rimando; le ufficiali vere (circa un'ora prima della partita) si leggono dalla pagina `/partite/.../formazioni` (`sky.aggiungi_ufficiali`). Chi non è né titolare né in panchina nella formazione ufficiale risulta "non convocato".
 - I nomi si abbinano agli id di Fantacalcio.it squadra per squadra (link della scheda Sky, cognome, iniziale, piccoli refusi); i non riconosciuti sono quasi sempre ragazzi della Primavera fuori dal listone.
-- Combinazione (`modello.probabilita_titolare`): formazioni ufficiali decidono (titolare 99%); altrimenti 60% Fantacalcio.it + 40% Sky; se una fonte lo dà fuori e l'altra titolare diventa "in dubbio" (30%). Pesi scelti a ragione, non tarati: per tararli serve lo storico delle probabili, che si accumula da ora.
+- Combinazione (`modello.probabilita_titolare`): formazioni ufficiali decidono (titolare 99%); altrimenti 60% Fantacalcio.it + 40% Sky; se una fonte lo dà fuori e l'altra titolare diventa "in dubbio" (30%). Pesi scelti a ragione, non ancora tarati.
+
+### Archivio delle probabili (per tarare i pesi)
+
+- A ogni giro, finché la giornata non è iniziata, `storico_probabili.py` salva cosa dicevano Fantacalcio.it e Sky su ogni giocatore in `output/probabili/2026-27/giornata-NN.json` (prima versione vista e ultima prima della scadenza). Sono dati pubblici e stanno nel repository.
+- Dopo le partite le fonti non servono più per un test onesto: Fantacalcio.it sostituisce le probabili con le formazioni vere. Per questo l'archivio parte dalla giornata 11.
+- `python -m fanta.taratura_probabili` confronta l'ultima versione con chi è partito titolare davvero (dai voti): Brier score, tabella di calibrazione e i pesi migliori. Ha senso dopo 4–5 giornate.
 - Se Sky non risponde o è su un'altra giornata si usa solo Fantacalcio.it.
 
 Limiti noti: niente quote dei bookmaker (nessuna fonte gratuita affidabile); forza squadre non corretta per gli avversari affrontati; la probabilità di giocare viene solo dalle probabili (la sua precisione si potrà misurare con lo storico dei consigli).

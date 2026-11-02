@@ -156,7 +156,7 @@ def carica_sky(giornata, listone):
     Se Sky non risponde o cambia pagina si va avanti con la sola Fantacalcio.it."""
     from . import sky
     try:
-        dati = sky.leggi(sky.scarica())
+        dati = sky.aggiungi_ufficiali(sky.leggi(sky.scarica()))
     except Exception as e:
         print(f"Sky non disponibile: {e}")
         return None
@@ -166,7 +166,8 @@ def carica_sky(giornata, listone):
     giocatori, sconosciuti = sky.abbina(dati, listone)
     if sconosciuti:
         print(f"Sky: {len(sconosciuti)} nomi non riconosciuti (di solito Primavera): {', '.join(sconosciuti[:10])}")
-    return {"giocatori": giocatori, "squadre": set(dati["squadre"])}
+    # squadre coperte da Sky -> True se la formazione ufficiale è già uscita
+    return {"giocatori": giocatori, "squadre": {sq: d["ufficiale"] for sq, d in dati["squadre"].items()}}
 
 
 def carica_tutto(stagione="2026-27", stagione_prec="2025-26"):

@@ -30,6 +30,59 @@ def scarica():
         return r.read().decode("utf-8", errors="replace")
 
 
+def _voce(a):
+    """(nome come lo scrive Sky, parole del nome completo preso dal link della scheda)."""
+    link = a.get("href", "").rstrip("/").split("/")
+    nome = re.sub(r"^\d+", "", a.get_text(strip=True))  # nella pagina ufficiale c'è il numero di maglia davanti
+    return nome, parole(link[-2]) if len(link) >= 2 else []
+
+
+def leggi_ufficiali(html):
+    """Formazioni ufficiali di una partita: [casa, trasferta], ognuna {titolari, riserve}."""
+    soup = BeautifulSoup(html, "html.parser")
+    squadre = []
+    for corpo in soup.select("tbody.ftbl__report-tabs-panel__body"):
+        sezioni, attuale = {"titolari": [], "riserve": []}, None
+        for riga in corpo.select("tr"):
+            intestazione = riga.select_one(".ftbl__report-tabs-panel__header-td")
+            if intestazione:
+                testo = intestazione.get_text(strip=True).lower()
+                attuale = testo if testo in sezioni else None
+                continue
+            if attuale:
+                sezioni[attuale] += [_voce(a) for a in riga.select("a[href*='/atleti/']")]
+        if len(sezioni["titolari"]) >= 11:
+            squadre.append(sezioni)
+    return squadre[:2]
+
+
+def scarica_ufficiali(url):
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return leggi_ufficiali(r.read().decode("utf-8", errors="replace"))
+
+
+def aggiungi_ufficiali(sky, scarica_pagina=scarica_ufficiali):
+    """Dove Sky rimanda alle formazioni ufficiali, le usa al posto delle probabili."""
+    pagine = {}
+    for squadra, d in sky["squadre"].items():
+        url = d.get("link_ufficiali")
+        if not url:
+            continue
+        if url not in pagine:
+            try:
+                pagine[url] = scarica_pagina(url)
+            except Exception as e:
+                print(f"Formazioni ufficiali Sky non lette ({url}): {e}")
+                pagine[url] = []
+        squadre = pagine[url]
+        if len(squadre) == 2 and len(squadre[d["lato"]]["titolari"]) == 11:
+            d["titolari"] = squadre[d["lato"]]["titolari"]
+            d["riserve"] = [nome for nome, _ in squadre[d["lato"]]["riserve"]]
+            d["ufficiale"] = True
+    return sky
+
+
 def leggi(html):
     """{giornata, squadre: {slug: {titolari: [(nome, parole del link)], riserve, dubbio, ..., ufficiale}}}"""
     soup = BeautifulSoup(html, "html.parser")
@@ -42,16 +95,17 @@ def leggi(html):
         if len(nomi) < 2:
             continue
         squadre = [SQUADRE_SKY.get(n, n.replace(" ", "-")) for n in nomi]
-        ufficiale = "formazioni ufficiali" in blocco.get_text(" ").lower()
+        # Attenzione: "Sono disponibili le formazioni ufficiali" è solo un rimando a un'altra pagina;
+        # i nomi qui restano le probabili. Le ufficiali si leggono da quella pagina (leggi_ufficiali).
+        rimando = next((a["href"] for a in blocco.select("a[href*='/formazioni']")
+                        if "/partite/" in a["href"]), None)
         colonne = [c for c in blocco.select(".ftbl__report-tabs-panel__col")
                    if c.select("a.ftbl__match-formation-player--name")][:2]
         elenchi = blocco.select(".ftbl__report-tabs-panel__joined-array")
         for lato, squadra in enumerate(squadre):
-            dati = {"ufficiale": ufficiale, "titolari": []}
-            if lato < len(colonne):
-                for a in colonne[lato].select("a.ftbl__match-formation-player--name"):
-                    link = a.get("href", "").rstrip("/").split("/")
-                    dati["titolari"].append((a.get_text(strip=True), parole(link[-2]) if len(link) >= 2 else []))
+            dati = {"ufficiale": False, "link_ufficiali": rimando, "lato": lato,
+                    "titolari": [_voce(a) for a in colonne[lato].select("a.ftbl__match-formation-player--name")]
+                    if lato < len(colonne) else []}
             for i, chiave in enumerate(LISTE):
                 k = 2 * i + lato
                 testo = elenchi[k].get_text(strip=True) if k < len(elenchi) else ""

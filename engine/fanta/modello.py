@@ -90,7 +90,7 @@ def _tasso(totale_corr, pv_corr, totale_prec, pv_prec, prior):
         pv_corr + PESO_STAGIONE_PREC * pv_prec + PRIOR_PARTITE)
 
 
-def probabilita_titolare(prob, sky, sky_copre_la_squadra):
+def probabilita_titolare(prob, sky, sky_copre_la_squadra, ufficiale_squadra=False):
     """Probabilità di partire titolare dalle due fonti.
 
     prob: voce delle probabili di Fantacalcio.it (con % di titolarità) o None;
@@ -101,12 +101,14 @@ def probabilita_titolare(prob, sky, sky_copre_la_squadra):
     fuori_sky = sky is not None and sky["sky"] in ("squalificato", "indisponibile")
     nota_fc = (prob or {}).get("nota")
 
-    if sky and sky["ufficiale"]:  # formazioni ufficiali: decidono loro
-        if sky["sky"] in ("titolare", "dubbio"):
+    if ufficiale_squadra or (sky and sky["ufficiale"]):  # formazioni ufficiali: decidono loro
+        if sky and sky["sky"] in ("titolare", "dubbio"):
             return 0.99, 1.0, "ok", "titolare nella formazione ufficiale"
         if fuori_fc or fuori_sky:
             return 0.0, 0.0, prob["stato"] if fuori_fc else sky["sky"], nota_fc
-        return 0.0, 1.0, "ok", "in panchina nella formazione ufficiale"
+        if sky and sky["sky"] == "riserva":
+            return 0.0, 1.0, "ok", "in panchina nella formazione ufficiale"
+        return 0.0, 0.0, "non convocato", "non è nella formazione ufficiale"
 
     if fuori_fc and fuori_sky:
         return 0.0, 0.0, prob["stato"], nota_fc
@@ -189,7 +191,7 @@ def parametri_giocatori(rosa, dati):
     forza, media = forza_squadre(dati["stat"], dati["stat_prec"], partite_giocate)
     ctx = contesto_partite(prob["partite"], forza, media)
 
-    sky = dati.get("sky") or {"giocatori": {}, "squadre": set()}
+    sky = dati.get("sky") or {"giocatori": {}, "squadre": {}}
     rigoristi = dati.get("rigoristi") or rigoristi_dalle_statistiche(dati["stat"], dati["stat_prec"])
     rigori_squadra, rigori_medi = rigori_per_partita(dati["stat"], dati["stat_prec"], partite_giocate)
 
@@ -222,7 +224,7 @@ def parametri_giocatori(rosa, dati):
             p_tit, ingresso, p["stato"] = 0.0, 0.0, "non gioca"
         else:
             p_tit, quota_ingresso, p["stato"], p["nota"] = probabilita_titolare(
-                info_prob, info_sky, squadra in sky["squadre"])
+                info_prob, info_sky, squadra in sky["squadre"], bool(sky["squadre"].get(squadra)))
             ingresso *= quota_ingresso
             p["lista"] = (info_prob or {}).get("lista")
         p["p_titolare"] = p_tit

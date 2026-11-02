@@ -48,11 +48,28 @@ def test_infortunato_per_una_fonte_titolare_per_l_altra():
 
 
 def test_formazione_ufficiale_decide():
-    assert probabilita_titolare(FC_INFORTUNATO, SKY("titolare", True), True)[:3] == (0.99, 1.0, "ok")
-    p, ingresso, stato, _ = probabilita_titolare(FC_TITOLARE, SKY("riserva", True), True)
+    assert probabilita_titolare(FC_INFORTUNATO, SKY("titolare", True), True, True)[:3] == (0.99, 1.0, "ok")
+    p, ingresso, stato, _ = probabilita_titolare(FC_TITOLARE, SKY("riserva", True), True, True)
     assert p == 0.0 and ingresso == 1.0 and stato == "ok"
+    # Né titolare né in panchina nella formazione ufficiale: non gioca, anche se le probabili lo davano al 100%.
+    assert probabilita_titolare(FC_TITOLARE, None, True, True)[:3] == (0.0, 0.0, "non convocato")
 
 
 def test_senza_sky_resta_fantacalcio():
     assert probabilita_titolare(FC_BALLOTTAGGIO, None, False)[0] == 0.55 * A
     assert probabilita_titolare(None, None, False)[2] == "non in lista"
+
+
+def test_archivio_probabili_tiene_prima_e_ultima(tmp_path, monkeypatch):
+    from fanta import storico_probabili as SP
+    monkeypatch.setattr(SP, "CARTELLA", tmp_path)
+    dati = lambda pct: {"probabili": {"giocatori": {1: {"squadra": "napoli", "pct_titolare": pct, "stato": "ok",
+                                                        "lista": "titolare"}}},
+                        "sky": {"giocatori": {1: {"sky": "titolare", "ufficiale": False}}, "squadre": {"napoli": False}}}
+    assert SP.salva(dati(0.55), 11)
+    assert not SP.salva(dati(0.55), 11)          # niente di nuovo: non riscrive
+    assert SP.salva(dati(1.0), 11)
+    f = SP.carica()[11]
+    assert f["primo"]["dati"]["giocatori"]["1"]["fc"] == 0.55
+    assert f["ultimo"]["dati"]["giocatori"]["1"] == {"squadra": "napoli", "fc": 1.0, "lista": "titolare",
+                                                     "sky": "titolare", "uff": False}

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import archivio as A, fonti, modello, notifiche, ottimizzatore, regole, rosa as R, simulazione
+from . import archivio as A, fonti, modello, notifiche, ottimizzatore, regole, rosa as R, simulazione, storico_probabili
 
 ROOT = Path(__file__).resolve().parents[2]
 REGOLE_STANDARD = json.loads((ROOT / "config" / "regole" / "standard.json").read_text(encoding="utf-8"))
@@ -169,6 +169,9 @@ def main(codice=None, adesso=None):
     dati = fonti.carica_tutto()
     giornata = stato_giornata(dati, adesso)
     pubblica_dati_comuni(dati, giornata)
+    if giornata["pronta"]:
+        # Le probabili della giornata, finché si può ancora cambiare formazione: serviranno a tararle.
+        storico_probabili.salva(dati, giornata["giornata"])
 
     if codice and not re.fullmatch(r"[0-9a-f]{6,32}", codice):
         raise SystemExit("Codice squadra non valido")
