@@ -7,7 +7,7 @@ App che ogni giornata consiglia la formazione migliore per la nostra rosa, usand
 | Tema | Scelta |
 |---|---|
 | Lega | Classic, Fanta Lignano su Leghe Fantacalcio, scontri diretti a soglia |
-| Regole | `config/lega.json` (dal regolamento 2026/27) |
+| Regole | `config/regole/fanta-lignano.json` (dal regolamento 2026/27); modello di partenza per le altre leghe in `config/regole/standard.json` |
 | Utenti | 2 persone, stessa squadra, entrambi modificano la rosa |
 | App | PWA su GitHub Pages (Safari → Aggiungi a Home) |
 | Calcolo | Python su GitHub Actions, aggiornamenti continui da metà settimana alla scadenza |

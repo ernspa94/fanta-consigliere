@@ -8,7 +8,7 @@ import pytest
 
 from fanta.regole import punteggio
 
-LEGA = json.loads((Path(__file__).resolve().parents[2] / "config" / "lega.json").read_text(encoding="utf-8"))
+LEGA = json.loads((Path(__file__).resolve().parents[2] / "config" / "regole" / "fanta-lignano.json").read_text(encoding="utf-8"))
 
 
 def squadra(spec):

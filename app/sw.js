@@ -1,7 +1,7 @@
 // Tiene in cache i file dell'app, così si apre anche senza rete.
 // Il consiglio non passa da qui: app.js lo scarica sempre fresco e ne tiene una copia in localStorage.
-const VERSIONE = "v3";
-const FILE = ["./", "index.html", "style.css", "app.js", "manifest.webmanifest", "icons/icon-180.png", "icons/icon-192.png"];
+const VERSIONE = "v4";
+const FILE = ["./", "index.html", "style.css", "config.js", "app.js", "manifest.webmanifest", "icons/icon-180.png", "icons/icon-192.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(VERSIONE).then((c) => c.addAll(FILE)));
@@ -28,8 +28,10 @@ self.addEventListener("push", (e) => {
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((finestre) => {
-    for (const f of finestre) if ("focus" in f) return f.focus();
-    return self.clients.openWindow(e.notification.data.url || "./");
+    const url = e.notification.data.url || "./";
+    // Porta l'app sulla squadra della notifica (l'url contiene ?squadra=<codice>).
+    for (const f of finestre) if ("focus" in f) return f.navigate(url).then((w) => (w || f).focus());
+    return self.clients.openWindow(url);
   }));
 });
 

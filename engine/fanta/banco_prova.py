@@ -15,7 +15,7 @@ import numpy as np
 from . import modello, storico_voti as sv
 
 ROOT = Path(__file__).resolve().parents[2]
-LEGA = json.loads((ROOT / "config" / "lega.json").read_text(encoding="utf-8"))
+LEGA = json.loads((ROOT / "config" / "regole" / "fanta-lignano.json").read_text(encoding="utf-8"))
 BM = LEGA["bonus_malus"]
 
 

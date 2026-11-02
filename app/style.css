@@ -236,3 +236,109 @@ dialog p { margin: 4px 0 12px; }
   font: inherit;
   font-weight: 600;
 }
+
+/* --- Navigazione e squadre --- */
+.top { gap: 10px; }
+.titoli { flex: 1; min-width: 0; }
+.titoli h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.freccia { color: var(--muted); font-size: 1.4rem; }
+
+.schede {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  gap: 4px;
+  background: var(--bg);
+  padding: 4px 0 10px;
+}
+.schede button {
+  flex: 1;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 8px 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+}
+.schede button.attiva { background: var(--accent); border-color: var(--accent); color: var(--card); font-weight: 600; }
+
+.campi { display: flex; flex-direction: column; gap: 10px; }
+.campi label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); }
+.campi input, .campi select, .riga-azioni select, .fascia input, .tabella-bonus input {
+  font: inherit;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.campi .spunta, .spunta { flex-direction: row; align-items: center; gap: 8px; color: var(--text); font-size: 0.95rem; }
+.spunte { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
+.spunta input { width: 20px; height: 20px; accent-color: var(--accent); }
+
+.tabella-bonus { width: 100%; border-collapse: collapse; }
+.tabella-bonus th { font-size: 0.8rem; text-align: left; font-weight: 600; padding: 4px 2px; }
+.tabella-bonus thead th { text-align: center; color: var(--muted); }
+.tabella-bonus td { padding: 3px 2px; }
+.tabella-bonus input { width: 100%; min-width: 0; padding: 8px 4px; text-align: center; }
+
+.fasce { display: flex; flex-direction: column; gap: 6px; }
+.fascia { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 6px; align-items: center; font-size: 0.85rem; color: var(--muted); }
+.fascia input { min-width: 0; padding: 8px; }
+
+.rosa-conta { margin: 0 0 10px; font-weight: 600; }
+.risultati:empty { display: none; }
+.risultati { margin-top: 6px; }
+.aggiungi {
+  width: 30px; height: 30px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent); color: var(--card); font-size: 1.2rem; font-weight: 700; flex: none;
+}
+.lista .togli {
+  all: unset;
+  cursor: pointer;
+  width: 30px; height: 30px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); color: var(--muted); font-size: 1.1rem; flex: none;
+}
+
+.codice-grande {
+  font-family: ui-monospace, monospace;
+  font-size: 1.4rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 10px;
+  user-select: all;
+}
+
+.barra-salva {
+  position: sticky;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--text);
+  color: var(--card);
+  padding: 10px 10px 10px 16px;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  margin-top: 12px;
+}
+.barra-salva .btn { width: auto; padding: 10px 22px; background: var(--accent); color: #fff; }
+#stato-box h2 { font-size: 1.1rem; }
+#stato-box p { margin: 0; }
+#cerca {
+  width: 100%;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 11px 12px;
+}
+.riga-azioni select, .riga-azioni input { flex: 1; min-width: 0; }

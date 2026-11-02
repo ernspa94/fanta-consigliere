@@ -1,47 +1,83 @@
-"""Calcola la formazione consigliata e la salva in output/consiglio.json.
+"""Calcola la formazione consigliata per ogni squadra e la salva (Supabase o, in locale, output/).
 
-Uso:  python -m fanta.consiglia   (dalla cartella engine/)
+Uso:  python -m fanta.consiglia                  tutte le squadre
+      python -m fanta.consiglia --codice ABC123   solo quella squadra (più quelle con un ricalcolo in sospeso)
+(dalla cartella engine/)
 """
 
+import argparse
 import json
+import re
+import traceback
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
 
-from . import fonti, modello, ottimizzatore, regole, rosa as R, simulazione
+from . import archivio as A, fonti, modello, notifiche, ottimizzatore, regole, rosa as R, simulazione
 
 ROOT = Path(__file__).resolve().parents[2]
+REGOLE_STANDARD = json.loads((ROOT / "config" / "regole" / "standard.json").read_text(encoding="utf-8"))
+MINIMO_PER_RUOLO = {"P": 1, "D": 3, "C": 3, "A": 1}
 
 
-def calcola(n_simulazioni=4000, adesso=None):
-    lega = json.loads((ROOT / "config" / "lega.json").read_text(encoding="utf-8"))
-    dati = fonti.carica_tutto()
-    rosa = R.carica_rosa()
-    adesso = adesso or datetime.now(fonti.ROMA)
+def stato_giornata(dati, adesso):
+    """Giornata da consigliare. Le probabili restano sulla giornata in corso finché il sito non passa
+    alla successiva: se è già iniziata la formazione non si può più cambiare, quindi si aspetta la prossima."""
     giornata = dati["probabili"]["giornata"]
     inizio = fonti.inizio_giornata(giornata)
-
-    # Le probabili restano sulla giornata in corso finché il sito non passa alla successiva:
-    # se è già iniziata la formazione non si può più cambiare, quindi si aspetta la prossima.
     if inizio and adesso >= inizio:
-        prossima = fonti.inizio_giornata(giornata + 1)
-        return {
-            "stato": "in_attesa",
-            "aggiornato": datetime.now(timezone.utc).isoformat(timespec="minutes"),
-            "giornata": giornata + 1,
-            "squadra": rosa["squadra"],
-            "inizio": prossima.isoformat() if prossima else None,
-            "scadenza": (prossima - timedelta(minutes=1)).isoformat() if prossima else None,
-        }
+        return {"giornata": giornata + 1, "pronta": False, "inizio": fonti.inizio_giornata(giornata + 1)}
+    return {"giornata": giornata, "pronta": True, "inizio": inizio}
 
+
+def regole_complete(regole):
+    """Il regolamento della squadra sopra quello standard: le chiavi mancanti prendono il valore standard."""
+    def unisci(base, sopra):
+        if isinstance(base, dict) and isinstance(sopra, dict):
+            return {k: unisci(base.get(k), sopra[k]) if k in sopra else v for k, v in {**base, **sopra}.items()}
+        return sopra if sopra is not None else base
+    return unisci(REGOLE_STANDARD, regole or {})
+
+
+def rosa_incompleta(giocatori):
+    conta = {r: sum(g["ruolo"] == r for g in giocatori) for r in "PDCA"}
+    mancano = [f"{MINIMO_PER_RUOLO[r] - conta[r]} {nome}" for r, nome in
+               (("P", "portiere"), ("D", "difensori"), ("C", "centrocampisti"), ("A", "attaccanti"))
+               if conta[r] < MINIMO_PER_RUOLO[r]]
+    if mancano or len(giocatori) < 11:
+        return "Rosa incompleta: " + (", ".join(f"mancano {m}" for m in mancano) or "servono almeno 11 giocatori")
+    return None
+
+
+def calcola(squadra, dati, giornata, n_simulazioni=4000):
+    inizio = giornata["inizio"]
+    base = {
+        "aggiornato": datetime.now(timezone.utc).isoformat(timespec="minutes"),
+        "giornata": giornata["giornata"],
+        "squadra": squadra["nome"],
+        "inizio": inizio.isoformat() if inizio else None,
+        "scadenza": (inizio - timedelta(minutes=1)).isoformat() if inizio else None,
+    }
+    if not giornata["pronta"]:
+        return {**base, "stato": "in_attesa"}
+
+    lega = regole_complete(squadra["regole"])
+    rosa = {"giocatori": [dict(g) for g in squadra["rosa"]]}
+    errore = rosa_incompleta(rosa["giocatori"])
+    if errore:
+        return {**base, "stato": "rosa_incompleta", "messaggio": errore}
     mancanti = R.collega_id(rosa, dati["stat"], dati["probabili"]["giocatori"], dati["stat_prec"])
     if mancanti:
-        raise SystemExit(f"Giocatori non trovati su Fantacalcio.it: {', '.join(mancanti)}")
+        return {**base, "stato": "rosa_incompleta",
+                "messaggio": f"Giocatori non trovati su Fantacalcio.it: {', '.join(mancanti)}"}
 
     giocatori, contesto = modello.parametri_giocatori(rosa, dati)
     ha_voto, voto, fv = simulazione.simula(giocatori, contesto, lega, n=n_simulazioni)
-    best, alternative, valore = ottimizzatore.migliore_formazione(giocatori, ha_voto, voto, fv, lega)
+    try:
+        best, alternative, valore = ottimizzatore.migliore_formazione(giocatori, ha_voto, voto, fv, lega)
+    except ValueError as e:
+        return {**base, "stato": "rosa_incompleta", "messaggio": str(e)}
 
     def scheda(i):
         g = giocatori[i]
@@ -73,12 +109,8 @@ def calcola(n_simulazioni=4000, adesso=None):
         }
 
     return {
+        **base,
         "stato": "pronto",
-        "aggiornato": datetime.now(timezone.utc).isoformat(timespec="minutes"),
-        "giornata": giornata,
-        "squadra": rosa["squadra"],
-        "inizio": inizio.isoformat() if inizio else None,
-        "scadenza": (inizio - timedelta(minutes=1)).isoformat() if inizio else None,
         **formazione(best),
         "titolari": [scheda(i) for i in best["titolari"]],
         "panchina": [scheda(i) for i in best["panchina"]],
@@ -90,9 +122,9 @@ def calcola(n_simulazioni=4000, adesso=None):
 
 
 def stampa(c):
-    if c["stato"] == "in_attesa":
-        print(f"\n{c['squadra']} — giornata {c['giornata']}: probabili non ancora uscite. "
-              f"Scadenza formazione: {c['scadenza'] or 'non ancora fissata'}")
+    if c["stato"] != "pronto":
+        motivo = c.get("messaggio") or f"probabili non ancora uscite, scadenza {c['scadenza'] or 'non ancora fissata'}"
+        print(f"\n{c['squadra']} — giornata {c['giornata']}: {motivo}")
         return
     casa = lambda g: "" if g["avversario"] is None else (f"vs {g['avversario']}" if g["casa"] else f"@ {g['avversario']}")
     riga = lambda g: (f"  {g['ruolo']} {g['nome']:<22}{g['squadra']:<11}{casa(g):<16}"
@@ -111,25 +143,66 @@ def stampa(c):
     print("\nALTRI MODULI:", ", ".join(f"{a['modulo']} {a['punti_attesi']}" for a in c["alternative"]))
 
 
-def scrivi_se_cambiato(file, consiglio):
-    """Scrive il consiglio solo se cambia qualcosa oltre all'orario: così il workflow non fa commit inutili."""
-    if file.exists():
-        vecchio = json.loads(file.read_text(encoding="utf-8"))
-        if {**vecchio, "aggiornato": None} == {**consiglio, "aggiornato": None}:
-            return False
-    file.write_text(json.dumps(consiglio, ensure_ascii=False, indent=2), encoding="utf-8")
-    return True
+def cambiato(vecchio, nuovo):
+    """Conta tutto tranne l'orario di calcolo: evita scritture (e commit) inutili."""
+    return vecchio is None or {**vecchio, "aggiornato": None} != {**nuovo, "aggiornato": None}
+
+
+def pubblica_dati_comuni(dati, giornata):
+    """Listone per la ricerca nell'app e orari della giornata per pianifica.py: dati pubblici."""
+    out = ROOT / "output"
+    out.mkdir(exist_ok=True)
+    (out / "listone.json").write_text(json.dumps(dati["listone"], ensure_ascii=False, separators=(",", ":")),
+                                      encoding="utf-8")
+    inizio = giornata["inizio"]
+    (out / "giornata.json").write_text(json.dumps({
+        "giornata": giornata["giornata"], "pronta": giornata["pronta"],
+        "inizio": inizio.isoformat() if inizio else None,
+        "scadenza": (inizio - timedelta(minutes=1)).isoformat() if inizio else None,
+    }, indent=2) + "\n", encoding="utf-8")
+
+
+def main(codice=None, adesso=None):
+    arch = A.da_ambiente()
+    adesso = adesso or datetime.now(fonti.ROMA)
+    dati = fonti.carica_tutto()
+    giornata = stato_giornata(dati, adesso)
+    pubblica_dati_comuni(dati, giornata)
+
+    if codice and not re.fullmatch(r"[0-9a-f]{6,32}", codice):
+        raise SystemExit("Codice squadra non valido")
+    if codice:
+        squadre = {s["codice"]: s for s in arch.squadre([codice]) + arch.squadre(solo_da_ricalcolare=True)}.values()
+    else:
+        squadre = arch.squadre()
+
+    errori = 0
+    for sq in squadre:
+        try:
+            c = calcola(sq, dati, giornata)
+            prec = arch.ultimo_consiglio(sq["codice"])
+            if cambiato(prec, c):
+                arch.salva_consiglio(sq["codice"], c)
+            inviate = json.loads(json.dumps(sq.get("notifiche_inviate") or {}))
+            avvisi = notifiche.messaggi(prec, c, inviate, adesso)
+            notifiche.invia(avvisi, sq, arch)
+            campi = {}
+            if inviate != (sq.get("notifiche_inviate") or {}):
+                campi["notifiche_inviate"] = inviate
+            if sq.get("ricalcolo_richiesto"):
+                campi["ricalcolo_richiesto"] = None
+            if campi:
+                arch.aggiorna_squadra(sq["codice"], campi)
+            stampa(c)
+        except Exception:
+            errori += 1
+            print(f"\n⚠ Errore con la squadra {sq.get('nome')} ({sq['codice'][:4]}…):")
+            traceback.print_exc()
+    if errori:
+        raise SystemExit(f"{errori} squadre non calcolate")
 
 
 if __name__ == "__main__":
-    consiglio = calcola()
-    out = ROOT / "output"
-    (out / "storico").mkdir(parents=True, exist_ok=True)
-    scrivi_se_cambiato(out / "consiglio.json", consiglio)
-    if consiglio["stato"] == "pronto":
-        # Ultima versione prima della scadenza, per ogni giornata: l'app la mostra nello storico
-        # e servirà per misurare quanto indovina il modello.
-        scrivi_se_cambiato(out / "storico" / f"giornata-{consiglio['giornata']:02d}.json", consiglio)
-    giornate = sorted(int(f.stem.split("-")[1]) for f in (out / "storico").glob("giornata-*.json"))
-    (out / "storico" / "indice.json").write_text(json.dumps({"giornate": giornate}), encoding="utf-8")
-    stampa(consiglio)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--codice")
+    main(ap.parse_args().codice)

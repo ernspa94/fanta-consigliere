@@ -1,22 +1,18 @@
 """Decide quali notifiche mandare confrontando il consiglio precedente con quello nuovo, e le invia.
 
-Uso:  python -m fanta.notifiche <consiglio_precedente.json>   (dalla cartella engine/)
-      python -m fanta.notifiche --prova                      (manda solo una notifica di prova)
-Variabili d'ambiente: VAPID_PRIVATE_KEY e PUSH_ISCRIZIONI (lista JSON di {nome, iscrizione}).
-Senza variabili stampa soltanto le notifiche che manderebbe.
+Le chiama consiglia.py per ogni squadra. Prova:  python -m fanta.notifiche --prova [CODICE]
+Variabile d'ambiente VAPID_PRIVATE_KEY (senza, stampa soltanto le notifiche che manderebbe).
+Le iscrizioni dei telefoni vengono dall'archivio (Supabase, o PUSH_ISCRIZIONI in locale).
 """
 
 import json
 import os
 import sys
 from datetime import datetime
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
 ROMA = ZoneInfo("Europe/Rome")
 
-ROOT = Path(__file__).resolve().parents[2]
-FILE_INVIATE = ROOT / "output" / "notifiche_inviate.json"
 URL_APP = "https://ernspa94.github.io/fanta-consigliere/"
 CONTATTO_VAPID = "https://ernspa94.github.io"  # il servizio push vuole un mailto: o un'origine senza percorso
 PROMEMORIA = [("30m", 30, "Mancano 30 minuti"), ("3h", 180, "Mancano 3 ore")]  # dal più urgente
@@ -78,35 +74,40 @@ def messaggi(prec, nuovo, inviate, adesso):
     return out
 
 
-def invia(notifiche):
-    chiave = os.environ.get("VAPID_PRIVATE_KEY")
-    iscrizioni = json.loads(os.environ.get("PUSH_ISCRIZIONI") or "[]")
+def invia(notifiche, squadra, arch):
+    """Manda le notifiche a chi segue la squadra. Senza VAPID_PRIVATE_KEY le stampa soltanto."""
     for n in notifiche:
-        print(f"🔔 {n['titolo']} — {n['testo']}")
-    if not (chiave and iscrizioni and notifiche):
+        print(f"🔔 {squadra['nome']}: {n['titolo']} — {n['testo']}")
+    chiave = os.environ.get("VAPID_PRIVATE_KEY")
+    if not (chiave and notifiche):
+        return
+    iscrizioni = arch.iscrizioni(squadra["codice"])
+    if not iscrizioni:
         return
     from pywebpush import WebPushException, webpush
 
+    url = URL_APP if squadra["codice"] == "locale" else f"{URL_APP}?squadra={squadra['codice']}"
     for n in notifiche:
-        dati = json.dumps({**n, "url": URL_APP})
+        # Un iPhone può seguire più squadre: il nome della squadra va nel titolo.
+        dati = json.dumps({"titolo": f"{squadra['nome']} · {n['titolo']}", "testo": n["testo"], "url": url})
         for persona in iscrizioni:
             try:
                 webpush(persona["iscrizione"], dati, vapid_private_key=chiave,
                         vapid_claims={"sub": CONTATTO_VAPID}, ttl=6 * 3600)
-                print(f"   inviata a {persona['nome']}")
+                print(f"   inviata a {persona.get('nome')}")
             except WebPushException as e:
-                # 404/410: iscrizione scaduta, va rifatta dall'app. Non blocca le altre.
-                print(f"   ⚠ non inviata a {persona['nome']}: {e}")
+                stato = getattr(e.response, "status_code", None)
+                print(f"   ⚠ non inviata a {persona.get('nome')}: {e}")
+                if stato in (404, 410):  # iscrizione scaduta: si rifà dall'app
+                    arch.rimuovi_iscrizione(squadra["codice"], persona["iscrizione"]["endpoint"])
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["--prova"]:
-        invia([{"titolo": "Prova notifiche ✅", "testo": "Se leggi questo messaggio, gli avvisi del Fanta Consigliere funzionano."}])
-        sys.exit()
-    prec_file = Path(sys.argv[1]) if len(sys.argv) > 1 else None
-    prec = json.loads(prec_file.read_text(encoding="utf-8")) if prec_file and prec_file.stat().st_size else None
-    nuovo = json.loads((ROOT / "output" / "consiglio.json").read_text(encoding="utf-8"))
-    inviate = json.loads(FILE_INVIATE.read_text(encoding="utf-8")) if FILE_INVIATE.exists() else {}
-    notifiche = messaggi(prec, nuovo, inviate, datetime.now(ROMA))
-    invia(notifiche)
-    FILE_INVIATE.write_text(json.dumps(inviate, indent=2) + "\n", encoding="utf-8")
+    # python -m fanta.notifiche --prova [CODICE]: notifica di prova a chi segue la squadra (o tutte)
+    if sys.argv[1:2] != ["--prova"]:
+        raise SystemExit("Uso: python -m fanta.notifiche --prova [CODICE]")
+    from . import archivio
+    arch = archivio.da_ambiente()
+    for sq in arch.squadre(sys.argv[2:3] or None):
+        invia([{"titolo": "Prova notifiche ✅",
+                "testo": "Se leggi questo messaggio, gli avvisi del Fanta Consigliere funzionano."}], sq, arch)

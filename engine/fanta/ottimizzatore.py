@@ -31,6 +31,9 @@ def migliore_formazione(giocatori, ha_voto, voto, fv, lega):
 
     risultati = []
     for modulo in lega["moduli"]:
+        d, c, a = (int(x) for x in modulo.split("-"))
+        if len(per_ruolo["P"]) < 1 or len(per_ruolo["D"]) < d or len(per_ruolo["C"]) < c or len(per_ruolo["A"]) < a:
+            continue  # la rosa non ha abbastanza giocatori per questo modulo
         tit, pan = _formazione(modulo, valore, per_ruolo)
         migliore = media(tit, pan)
         # Ricerca locale: prova a scambiare ogni titolare con un panchinaro dello stesso ruolo.
@@ -57,6 +60,8 @@ def migliore_formazione(giocatori, ha_voto, voto, fv, lega):
         tit, pan = _ordina(tit, pan, valore, ruoli)
         risultati.append({"modulo": modulo, "titolari": tit, "panchina": pan, "media": migliore})
 
+    if not risultati:
+        raise ValueError("Con questa rosa non si può schierare nessuno dei moduli ammessi")
     risultati.sort(key=lambda x: -x["media"])
     best = risultati[0]
     totale, mod, cambi = punteggio(best["titolari"], best["panchina"], ruoli, ha_voto, voto, fv, lega)

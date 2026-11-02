@@ -113,6 +113,19 @@ def leggi_statistiche(html):
     return out
 
 
+def leggi_listone(html):
+    """Tutti i giocatori di Serie A con ruolo Classic e quotazione attuale, ordinati per nome."""
+    soup = BeautifulSoup(html, "html.parser")
+    out = []
+    for tr in soup.select("tr.player-row"):
+        pid, squadra = _id_squadra(tr.select_one("a.player-link"))
+        q = tr.select_one('td[data-col-key="c_qa"]')
+        out.append({"id": pid, "nome": tr.select_one("a.player-link span").get_text(strip=True),
+                    "ruolo": tr["data-filter-role-classic"].upper(), "squadra": squadra,
+                    "q": int(_numero(q.get_text())) if q else 0})
+    return sorted(out, key=lambda g: g["nome"].lower())
+
+
 def leggi_rigoristi(html):
     """Per ogni squadra, gli id dei rigoristi in ordine (1°, 2°, 3°)."""
     soup = BeautifulSoup(html, "html.parser")
@@ -144,6 +157,7 @@ def carica_tutto(stagione="2026-27", stagione_prec="2025-26"):
         "stat": leggi_statistiche(scarica(f"/statistiche-serie-a/{stagione}", max_eta_min=360)),
         "stat_prec": leggi_statistiche(scarica(f"/statistiche-serie-a/{stagione_prec}", max_eta_min=60 * 24 * 30)),
         "rigoristi": leggi_rigoristi(scarica("/rigoristi-serie-a", max_eta_min=360)),
+        "listone": leggi_listone(scarica("/quotazioni-fantacalcio", max_eta_min=360)),
     }
 
 

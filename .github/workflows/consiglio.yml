@@ -2,11 +2,15 @@ name: Aggiorna consiglio formazione
 
 on:
   schedule:
-    # Ogni 15 minuti: pianifica.py decide se serve ricalcolare
-    # (sempre nelle 8 ore prima della scadenza, altrimenti ogni 2 ore di giorno).
+    # Ogni 15 minuti: pianifica.py decide se serve ricalcolare (ricalcoli chiesti dall'app,
+    # sempre nelle 8 ore prima della scadenza, altrimenti ogni 2 ore di giorno).
     - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
+      codice:
+        description: "Solo questa squadra (lo usa il pulsante Ricalcola dell'app)"
+        type: string
+        default: ""
       prova:
         description: "Manda solo una notifica di prova"
         type: boolean
@@ -19,10 +23,18 @@ concurrency:
   group: consiglio
   cancel-in-progress: false
 
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+  VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+  PUSH_ISCRIZIONI: ${{ secrets.PUSH_ISCRIZIONI }}
+  # Arriva da fuori (pulsante Ricalcola): si usa solo come variabile, mai dentro il comando.
+  CODICE: ${{ inputs.codice }}
+
 jobs:
   aggiorna:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -36,12 +48,9 @@ jobs:
       - name: Notifica di prova
         if: inputs.prova
         working-directory: engine
-        env:
-          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
-          PUSH_ISCRIZIONI: ${{ secrets.PUSH_ISCRIZIONI }}
         run: |
           pip install -q pywebpush
-          python -m fanta.notifiche --prova
+          python -m fanta.notifiche --prova ${CODICE:+"$CODICE"}
 
       - uses: actions/setup-python@v5
         if: steps.piano.outputs.esegui == 'true'
@@ -58,25 +67,15 @@ jobs:
         working-directory: engine
         run: python -m pytest -q tests
 
-      - name: Calcola il consiglio
+      - name: Calcola i consigli e manda le notifiche
         if: steps.piano.outputs.esegui == 'true'
         working-directory: engine
-        run: |
-          git show HEAD:output/consiglio.json > /tmp/precedente.json 2>/dev/null || : > /tmp/precedente.json
-          python -m fanta.consiglia
+        run: python -m fanta.consiglia ${CODICE:+--codice "$CODICE"}
 
-      - name: Manda le notifiche
-        if: steps.piano.outputs.esegui == 'true'
-        working-directory: engine
-        env:
-          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
-          PUSH_ISCRIZIONI: ${{ secrets.PUSH_ISCRIZIONI }}
-        run: python -m fanta.notifiche /tmp/precedente.json
-
-      - name: Salva se è cambiato qualcosa
+      - name: Salva i dati pubblici se sono cambiati
         if: steps.piano.outputs.esegui == 'true'
         run: |
-          # consiglia.py non riscrive i file se è cambiato solo l'orario di aggiornamento.
+          # Listone e orari della giornata (i consigli delle squadre stanno su Supabase).
           if [ -z "$(git status --porcelain output)" ]; then
             echo "Nessuna novità."
             exit 0
@@ -84,5 +83,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add output
-          git commit -m "Consiglio giornata $(jq .giornata output/consiglio.json) aggiornato"
-          git push
+          git commit -m "Dati giornata $(jq .giornata output/giornata.json) aggiornati"
+          git pull --rebase -q && git push

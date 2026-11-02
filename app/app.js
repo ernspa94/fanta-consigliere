@@ -1,27 +1,17 @@
-// Legge output/ direttamente dal repository: si aggiorna appena il workflow fa un commit,
-// senza dover ripubblicare l'app.
-// Con ?locale legge ../output/ (per provare l'app con dati di prova servendo la cartella del progetto).
-const OUTPUT = new URLSearchParams(location.search).has("locale")
-  ? "../output/" : "https://raw.githubusercontent.com/ernspa94/fanta-consigliere/main/output/";
-const VAPID_PUBBLICA = "BKxnXkLdxzZeb3RJUsDxEcJpSKHgkDbZt0mHGXa6cjIw0y0nSHNisqKBPiWrnKlYXPVDwLXrG3E2ljxq_v0Hj5I";
+// Fanta Consigliere: più squadre, ognuna con un codice segreto (niente registrazione).
+// Squadre, rose, regolamenti e consigli stanno su Supabase: l'app chiama solo le funzioni
+// di supabase/schema.sql, che vogliono sempre il codice della squadra.
 
-let attuale = null; // consiglio della prossima giornata
-let attivo = null;  // consiglio mostrato ora (prossima giornata o storico)
-
+const C = window.CONFIG;
 const $ = (id) => document.getElementById(id);
 const sigla = (sq) => (sq || "").slice(0, 3).toUpperCase();
 const nomeSquadra = (sq) => (sq || "").split("-").map((p) => p[0].toUpperCase() + p.slice(1)).join(" ");
 const pct = (x) => `${Math.round(x * 100)}%`;
 const num = (x, d = 1) => (x == null ? "–" : x.toFixed(d).replace(".", ","));
-
-function partita(g) {
-  if (!g.avversario) return "non gioca";
-  return g.casa ? `vs ${sigla(g.avversario)}` : `@ ${sigla(g.avversario)}`;
-}
-
-function classeVoto(p) {
-  return p >= 0.85 ? "ok" : p >= 0.6 ? "warn" : "bad";
-}
+const clona = (x) => JSON.parse(JSON.stringify(x));
+const normalizza = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const dataOra = (iso) => new Date(iso).toLocaleString("it-IT", {
+  weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
 
 function el(tag, attrs = {}, ...figli) {
   const e = document.createElement(tag);
@@ -34,6 +24,373 @@ function el(tag, attrs = {}, ...figli) {
   return e;
 }
 
+function mostraErrore(messaggio) {
+  $("errore").textContent = messaggio;
+  $("errore").hidden = !messaggio;
+  if (messaggio) window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// --- Memoria del telefono: le squadre che segue (solo comodità, la verità è sul server) ---------------
+
+function leggiLocale(chiave, predefinito) {
+  try { return JSON.parse(localStorage.getItem(chiave)) ?? predefinito; } catch { return predefinito; }
+}
+function scriviLocale(chiave, valore) {
+  try { valore == null ? localStorage.removeItem(chiave) : localStorage.setItem(chiave, JSON.stringify(valore)); } catch {}
+}
+const mieSquadre = () => leggiLocale("squadre", []);
+function ricordaSquadra(s) {
+  scriviLocale("squadre", [{ codice: s.codice, nome: s.nome, lega: s.lega || "" },
+    ...mieSquadre().filter((x) => x.codice !== s.codice)]);
+}
+function dimenticaSquadra(codice) {
+  scriviLocale("squadre", mieSquadre().filter((x) => x.codice !== codice));
+  scriviLocale(`consiglio:${codice}`, null);
+  scriviLocale(`notifiche:${codice}`, null);
+}
+
+// --- Server ----------------------------------------------------------------------------------------
+
+async function rpc(funzione, parametri) {
+  if (!C.SUPABASE_URL) throw new Error("L'app non è ancora collegata al database.");
+  const r = await fetch(`${C.SUPABASE_URL}/rest/v1/rpc/${funzione}`, {
+    method: "POST",
+    headers: { apikey: C.SUPABASE_ANON_KEY, Authorization: `Bearer ${C.SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(parametri),
+  });
+  const testo = await r.text();
+  const dati = testo ? JSON.parse(testo) : null;
+  if (!r.ok) throw new Error(dati?.message || `Errore ${r.status}`);
+  return dati;
+}
+
+async function pubblico(percorso) {
+  const r = await fetch(`${C.RAW}${percorso}?t=${Date.now()}`, { cache: "no-store" });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+let listone = null;
+const caricaListone = async () => (listone ??= await pubblico("output/listone.json"));
+
+const MODELLI = [
+  { id: "standard", nome: "Standard Leghe Fantacalcio" },
+  { id: "fanta-lignano", nome: "Fanta Lignano" },
+];
+const caricaModello = (id) => pubblico(`config/regole/${id}.json`);
+
+for (const sel of [document.querySelector("#form-crea select[name=modello]"), $("regole-modello")]) {
+  sel.replaceChildren(...MODELLI.map((m) => el("option", { value: m.id }, m.nome)));
+}
+
+// --- Stato ------------------------------------------------------------------------------------------
+
+let squadra = null; // come sul server
+let bozza = null;   // copia che si modifica nelle schede Rosa, Regolamento, Condividi
+let attuale = null; // consiglio più recente
+let attivo = null;  // consiglio mostrato ora (più recente o di una giornata passata)
+
+const modificabili = (s) => JSON.stringify([s.nome, s.lega || "", s.rosa, s.regole]);
+const modificata = () => squadra && bozza && modificabili(squadra) !== modificabili(bozza);
+const aggiornaBarra = () => { $("barra-salva").hidden = !modificata(); };
+
+// --- Navigazione: #/  oppure  #/s/<codice>/<scheda> ------------------------------------------------
+
+const vai = (hash) => { location.hash = hash; };
+
+async function instrada() {
+  mostraErrore("");
+  const m = location.hash.match(/^#\/s\/([0-9a-z]+)(?:\/(\w+))?/i);
+  try {
+    if (m) await apriSquadra(m[1].toLowerCase(), m[2] || "consiglio");
+    else mostraHome();
+  } catch (e) {
+    mostraHome();
+    mostraErrore(e.message);
+  }
+}
+
+window.addEventListener("hashchange", instrada);
+
+$("indietro").addEventListener("click", () => {
+  if (modificata() && !confirm("Ci sono modifiche non salvate. Uscire lo stesso?")) return;
+  squadra = bozza = null;
+  vai("#/");
+});
+
+// --- Home -------------------------------------------------------------------------------------------
+
+function mostraHome() {
+  squadra = bozza = null;
+  $("home").hidden = false;
+  $("squadra").hidden = true;
+  $("indietro").hidden = $("ricarica").hidden = true;
+  $("titolo").textContent = "Fanta Consigliere";
+  $("sottotitolo").textContent = "Le formazioni consigliate per le tue squadre";
+  const lista = mieSquadre();
+  $("nessuna-squadra").hidden = lista.length > 0;
+  $("mie-squadre").replaceChildren(...lista.map((s) =>
+    el("li", {},
+      el("button", { onclick: () => vai(`#/s/${s.codice}`) },
+        el("span", { class: "info" }, el("div", { class: "nome-riga" }, s.nome), el("div", { class: "sotto" }, s.lega)),
+        el("span", { class: "freccia" }, "›")))));
+  if (!C.SUPABASE_URL) mostraErrore("App in aggiornamento: il database non è ancora collegato.");
+}
+
+$("form-crea").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  f.querySelector("button").disabled = true;
+  try {
+    const regole = await caricaModello(f.modello.value);
+    const codice = await rpc("crea_squadra", { p_nome: f.nome.value, p_lega: f.lega.value, p_regole: regole });
+    ricordaSquadra({ codice, nome: f.nome.value.trim(), lega: f.lega.value.trim() });
+    f.reset();
+    vai(`#/s/${codice}/rosa`);
+  } catch (err) {
+    mostraErrore(`Non riesco a creare la squadra: ${err.message}`);
+  } finally {
+    f.querySelector("button").disabled = false;
+  }
+});
+
+$("form-entra").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const codice = e.target.codice.value.trim().toLowerCase();
+  try {
+    await rpc("leggi_squadra", { p_codice: codice });
+    e.target.reset();
+    vai(`#/s/${codice}`);
+  } catch {
+    mostraErrore("Codice non valido: controlla di averlo copiato tutto.");
+  }
+});
+
+// --- Squadra ----------------------------------------------------------------------------------------
+
+async function apriSquadra(codice, scheda) {
+  $("home").hidden = true;
+  $("squadra").hidden = false;
+  $("indietro").hidden = $("ricarica").hidden = false;
+  if (!squadra || squadra.codice !== codice) {
+    squadra = await rpc("leggi_squadra", { p_codice: codice });
+    bozza = clona(squadra);
+    ricordaSquadra(squadra);
+    attuale = attivo = null;
+    disegnaRosa();
+    disegnaRegole();
+    disegnaCondividi();
+    aggiornaBarra();
+    caricaConsiglio();
+    preparaNotifiche();
+  }
+  $("titolo").textContent = bozza.nome;
+  $("sottotitolo").textContent = bozza.lega || "";
+  mostraScheda(scheda);
+}
+
+function mostraScheda(nome) {
+  if (!$(`scheda-${nome}`)) nome = "consiglio";
+  for (const b of document.querySelectorAll(".schede button")) b.classList.toggle("attiva", b.dataset.scheda === nome);
+  for (const s of document.querySelectorAll(".scheda")) s.hidden = s.id !== `scheda-${nome}`;
+  if (nome === "rosa") caricaListone().catch(() => mostraErrore("Non riesco a scaricare il listone."));
+}
+
+for (const b of document.querySelectorAll(".schede button")) {
+  b.addEventListener("click", () => {
+    history.replaceState(null, "", `#/s/${squadra.codice}/${b.dataset.scheda}`);
+    mostraScheda(b.dataset.scheda);
+  });
+}
+
+$("salva").addEventListener("click", async () => {
+  $("salva").disabled = true;
+  try {
+    await rpc("salva_squadra", { p_codice: squadra.codice, p_nome: bozza.nome, p_lega: bozza.lega || "",
+                                 p_rosa: bozza.rosa, p_regole: bozza.regole });
+    squadra = { ...squadra, ...clona(bozza) };
+    ricordaSquadra(squadra);
+    aggiornaBarra();
+    $("titolo").textContent = squadra.nome;
+    $("sottotitolo").textContent = squadra.lega || "";
+    await ricalcola();
+  } catch (e) {
+    mostraErrore(`Salvataggio non riuscito: ${e.message}`);
+  } finally {
+    $("salva").disabled = false;
+  }
+});
+
+$("ricarica").addEventListener("click", async () => {
+  if (modificata() && !confirm("Ricaricando perdi le modifiche non salvate. Continuare?")) return;
+  const codice = squadra.codice;
+  squadra = null;
+  await apriSquadra(codice, document.querySelector(".schede .attiva")?.dataset.scheda || "consiglio");
+});
+
+window.addEventListener("beforeunload", (e) => { if (modificata()) e.preventDefault(); });
+
+// --- Scheda Rosa ------------------------------------------------------------------------------------
+
+const ORDINE_RUOLI = "PDCA";
+const badgeRuolo = (r) => el("span", { class: `ruolo ${r}` }, r);
+const infoRiga = (titolo, sotto) =>
+  el("span", { class: "info" }, el("div", { class: "nome-riga" }, titolo), el("div", { class: "sotto" }, sotto));
+
+function disegnaRosa() {
+  const rosa = bozza.rosa;
+  const n = Object.fromEntries([...ORDINE_RUOLI].map((r) => [r, rosa.filter((g) => g.ruolo === r).length]));
+  $("rosa-conta").textContent = `${rosa.length} giocatori · P ${n.P} · D ${n.D} · C ${n.C} · A ${n.A}`;
+  $("rosa-vuota").hidden = rosa.length > 0;
+  const ordinata = [...rosa].sort((a, b) =>
+    ORDINE_RUOLI.indexOf(a.ruolo) - ORDINE_RUOLI.indexOf(b.ruolo) || a.nome.localeCompare(b.nome));
+  $("rosa-lista").replaceChildren(...ordinata.map((g) =>
+    el("li", {},
+      badgeRuolo(g.ruolo),
+      infoRiga(g.nome, nomeSquadra(g.squadra)),
+      el("button", { class: "togli", "aria-label": `Togli ${g.nome}`, onclick: () => {
+        bozza.rosa = bozza.rosa.filter((x) => x.fc_id !== g.fc_id);
+        disegnaRosa(); cerca(); aggiornaBarra();
+      } }, "×"))));
+}
+
+async function cerca() {
+  const q = normalizza($("cerca").value.trim());
+  if (q.length < 2) return $("risultati").replaceChildren();
+  const tutti = await caricaListone();
+  const presi = new Set(bozza.rosa.map((g) => g.fc_id));
+  const trovati = tutti.filter((g) => !presi.has(g.id) && (normalizza(g.nome).includes(q) || g.squadra.startsWith(q)))
+    .slice(0, 15);
+  $("risultati").replaceChildren(...(trovati.length ? trovati.map((g) =>
+    el("li", {},
+      el("button", { onclick: () => {
+        bozza.rosa.push({ fc_id: g.id, nome: g.nome, ruolo: g.ruolo, squadra: g.squadra });
+        $("cerca").value = "";
+        $("cerca").focus();
+        disegnaRosa(); cerca(); aggiornaBarra();
+      } },
+        badgeRuolo(g.ruolo),
+        infoRiga(g.nome, `${nomeSquadra(g.squadra)} · quotazione ${g.q}`),
+        el("span", { class: "aggiungi" }, "+")))) : [el("li", { class: "muted small" }, "Nessun giocatore trovato")]));
+}
+$("cerca").addEventListener("input", cerca);
+
+// --- Scheda Regolamento -----------------------------------------------------------------------------
+
+const VOCI_BONUS = [
+  ["gol", "Gol"], ["assist", "Assist"], ["rigore_sbagliato", "Rigore sbagliato"], ["rigore_parato", "Rigore parato"],
+  ["gol_subito", "Gol subito"], ["porta_imbattuta", "Porta imbattuta"], ["autogol", "Autogol"],
+  ["ammonizione", "Ammonizione"], ["espulsione", "Espulsione"], ["mvp_panini", "Migliore in campo"],
+];
+const MODULI = ["3-4-3", "3-5-2", "4-5-1", "4-4-2", "4-3-3", "5-3-2", "5-4-1"];
+
+const numero = (input) => (input.value === "" ? 0 : Number(input.value));
+const campoNumero = (valore, alCambio, attrs = {}) => {
+  const i = el("input", { type: "number", step: "0.5", inputmode: "decimal", ...attrs });
+  i.value = valore ?? 0;
+  i.addEventListener("input", () => { alCambio(numero(i)); aggiornaBarra(); });
+  return i;
+};
+
+function disegnaRegole() {
+  const r = bozza.regole;
+  r.bonus_malus ??= {};
+
+  $("regole-bonus").replaceChildren(...VOCI_BONUS.map(([chiave, etichetta]) =>
+    el("tr", {}, el("th", {}, etichetta), ...[...ORDINE_RUOLI].map((ruolo) =>
+      el("td", {}, campoNumero(r.bonus_malus[chiave]?.[ruolo], (v) => {
+        r.bonus_malus[chiave] ??= {};
+        r.bonus_malus[chiave][ruolo] = v;
+        // Il motore conta i rigori segnati come gol: tiene allineata anche la voce "gol su rigore".
+        if (chiave === "gol") (r.bonus_malus.gol_rigore ??= {})[ruolo] = v;
+      }, { "aria-label": `${etichetta} ${ruolo}` }))))));
+
+  r.moduli ??= [...MODULI];
+  $("regole-moduli").replaceChildren(...MODULI.map((m) => {
+    const c = el("input", { type: "checkbox" });
+    c.checked = r.moduli.includes(m);
+    c.addEventListener("change", () => {
+      r.moduli = MODULI.filter((x) => (x === m ? c.checked : r.moduli.includes(x)));
+      aggiornaBarra();
+    });
+    return el("label", { class: "spunta" }, c, ` ${m}`);
+  }));
+
+  const md = (r.modificatore_difesa ??= { attivo: false, minimo_difensori_schierati: 4, fasce: [] });
+  $("md-attivo").checked = !!md.attivo;
+  $("md-attivo").onchange = () => { md.attivo = $("md-attivo").checked; aggiornaBarra(); };
+  $("md-minimo").value = md.minimo_difensori_schierati ?? 4;
+  $("md-minimo").oninput = () => { md.minimo_difensori_schierati = numero($("md-minimo")); aggiornaBarra(); };
+  md.fasce = [...(md.fasce || [])].sort((a, b) => b.media_min - a.media_min);
+  while (md.fasce.length < 3) md.fasce.push({ media_min: 0, bonus: 0 });
+  $("md-fasce").replaceChildren(...md.fasce.map((f) =>
+    el("div", { class: "fascia" },
+      el("span", {}, "media ≥"), campoNumero(f.media_min, (v) => { f.media_min = v; }, { step: "0.25" }),
+      el("span", {}, "bonus +"), campoNumero(f.bonus, (v) => { f.bonus = v; }))));
+
+  const sost = (r.sostituzioni ??= {});
+  $("r-cambi").value = sost.max ?? 5;
+  $("r-cambi").oninput = () => { sost.max = numero($("r-cambi")); aggiornaBarra(); };
+
+  const sd = (r.scontri_diretti ??= {});
+  const soglie = sd.soglie_gol?.length ? sd.soglie_gol : [66, 70];
+  $("r-soglia").value = soglie[0];
+  $("r-passo").value = soglie.length > 1 ? soglie[1] - soglie[0] : 4;
+  const aggiornaSoglie = () => {
+    const prima = numero($("r-soglia")), passo = Math.max(1, numero($("r-passo")));
+    sd.soglie_gol = Array.from({ length: 8 }, (_, i) => prima + i * passo);
+    aggiornaBarra();
+  };
+  $("r-soglia").oninput = $("r-passo").oninput = aggiornaSoglie;
+}
+
+$("regole-applica").addEventListener("click", async () => {
+  if (!confirm("Sostituire tutto il regolamento con il modello scelto?")) return;
+  try {
+    bozza.regole = await caricaModello($("regole-modello").value);
+    disegnaRegole();
+    aggiornaBarra();
+  } catch (e) {
+    mostraErrore(`Non riesco a caricare il modello: ${e.message}`);
+  }
+});
+
+// --- Scheda Condividi -------------------------------------------------------------------------------
+
+const linkSquadra = () => `${location.origin}${location.pathname}?squadra=${squadra.codice}`;
+
+function disegnaCondividi() {
+  $("s-nome").value = bozza.nome;
+  $("s-lega").value = bozza.lega || "";
+  $("codice").textContent = squadra.codice;
+}
+$("s-nome").addEventListener("input", (e) => { bozza.nome = e.target.value; aggiornaBarra(); });
+$("s-lega").addEventListener("input", (e) => { bozza.lega = e.target.value; aggiornaBarra(); });
+
+$("copia-link").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(linkSquadra());
+    $("copia-link").textContent = "Link copiato ✓";
+  } catch {
+    prompt("Copia questo link:", linkSquadra());
+  }
+});
+
+$("esci").addEventListener("click", () => {
+  if (!confirm(`Togliere "${squadra.nome}" da questo telefono?`)) return;
+  dimenticaSquadra(squadra.codice);
+  squadra = bozza = null;
+  vai("#/");
+});
+
+// --- Scheda Consiglio -------------------------------------------------------------------------------
+
+function partita(g) {
+  if (!g.avversario) return "non gioca";
+  return g.casa ? `vs ${sigla(g.avversario)}` : `@ ${sigla(g.avversario)}`;
+}
+const classeVoto = (p) => (p >= 0.85 ? "ok" : p >= 0.6 ? "warn" : "bad");
+
 function apriDettaglio(g) {
   $("d-nome").textContent = g.nome;
   $("d-partita").textContent = g.avversario
@@ -45,35 +402,25 @@ function apriDettaglio(g) {
   const righe = [];
   if (g.rigorista) righe.push(`Rigorista n°${g.rigorista} della squadra.`);
   if (g.nota) righe.push(`${g.stato[0].toUpperCase() + g.stato.slice(1)}: ${g.nota}`);
-  const nota = righe.length ? righe.join(" ") : null;
-  $("d-nota").hidden = !nota;
-  $("d-nota").textContent = nota || "";
+  $("d-nota").hidden = righe.length === 0;
+  $("d-nota").textContent = righe.join(" ");
   $("dettaglio").showModal();
 }
 
-function chip(g) {
-  return el("button", { class: "giocatore", onclick: () => apriDettaglio(g) },
-    el("span", { class: "nome" }, g.nome),
-    el("span", { class: "avv" }, partita(g)),
-    el("span", { class: `badge ${classeVoto(g.p_voto)}` }, pct(g.p_voto)));
-}
+const chip = (g) => el("button", { class: "giocatore", onclick: () => apriDettaglio(g) },
+  el("span", { class: "nome" }, g.nome),
+  el("span", { class: "avv" }, partita(g)),
+  el("span", { class: `badge ${classeVoto(g.p_voto)}` }, pct(g.p_voto)));
 
-function riga(g) {
-  return el("li", {},
-    el("button", { onclick: () => apriDettaglio(g) },
-      el("span", { class: `ruolo ${g.ruolo}` }, g.ruolo),
-      el("span", { class: "info" },
-        el("div", { class: "nome-riga" }, g.nome),
-        el("div", { class: "sotto" }, `${nomeSquadra(g.squadra)} ${partita(g)} · voto ${pct(g.p_voto)} · se gioca ${num(g.fantavoto_se_gioca)}`)),
-      el("span", { class: `badge ${classeVoto(g.p_voto)}` }, num(g.punti_attesi))));
-}
-
-const dataOra = (iso) => new Date(iso).toLocaleString("it-IT", {
-  weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+const riga = (g) => el("li", {},
+  el("button", { onclick: () => apriDettaglio(g) },
+    badgeRuolo(g.ruolo),
+    infoRiga(g.nome, `${nomeSquadra(g.squadra)} ${partita(g)} · voto ${pct(g.p_voto)} · se gioca ${num(g.fantavoto_se_gioca)}`),
+    el("span", { class: `badge ${classeVoto(g.p_voto)}` }, num(g.punti_attesi))));
 
 function mostraScadenza(c, storico) {
   const box = $("scadenza-box");
-  box.hidden = !c.scadenza || storico;
+  box.hidden = !c?.scadenza || storico;
   if (box.hidden) return;
   const ore = (new Date(c.scadenza) - Date.now()) / 36e5;
   $("scadenza").textContent = ore > 0
@@ -82,26 +429,34 @@ function mostraScadenza(c, storico) {
   $("scadenza").classList.toggle("vicina", ore > 0 && ore < 3);
 }
 
+function mostraStato(titolo, testo) {
+  $("stato-box").hidden = false;
+  $("stato-titolo").textContent = titolo;
+  $("stato-testo").textContent = testo;
+}
+
 function mostra(c, storico = false) {
   attivo = { c, storico };
-  $("squadra").textContent = c.squadra;
-  $("sottotitolo").textContent = `Giornata ${c.giornata} · Fanta Lignano`;
-  $("contenuto").hidden = false;
-  $("errore").hidden = true;
   mostraScadenza(c, storico);
-
-  const inAttesa = c.stato === "in_attesa";
-  $("attesa").hidden = !inAttesa;
-  $("formazione").hidden = inAttesa;
+  $("stato-box").hidden = true;
+  $("formazione").hidden = true;
+  $("aggiornato").textContent = "";
+  if (!c) {
+    return mostraStato("Nessun consiglio ancora",
+      "Completa la rosa e salva: il primo consiglio arriva in 1–2 minuti. Oppure tocca Ricalcola adesso.");
+  }
+  if (c.stato === "in_attesa") {
+    return mostraStato(`Giornata ${c.giornata}: in attesa delle probabili`,
+      "Fantacalcio.it non ha ancora pubblicato le probabili formazioni di questa giornata. " +
+      "Il consiglio arriva appena escono (di solito tra martedì e mercoledì).");
+  }
+  if (c.stato === "rosa_incompleta") {
+    return mostraStato("Rosa da completare", `${c.messaggio}. Aggiungi i giocatori nella scheda Rosa e salva.`);
+  }
+  $("formazione").hidden = false;
   $("storico-nota").hidden = !storico;
   $("storico-nota").textContent = storico
     ? `Consiglio dato prima della scadenza della giornata ${c.giornata}, con le probabili di quel momento.` : "";
-  if (inAttesa) {
-    $("attesa-titolo").textContent = `Giornata ${c.giornata}: in attesa delle probabili`;
-    $("aggiornato").textContent = "";
-    return;
-  }
-
   mostraFormazione(c, c);
   $("aggiornato").textContent = `Consiglio cambiato l'ultima volta ${dataOra(c.aggiornato)}`;
 }
@@ -116,17 +471,14 @@ function mostraModulo(c, modulo) {
 }
 
 function mostraFormazione(c, f) {
-  const consigliato = f.modulo === c.modulo;
   $("modulo").textContent = f.modulo;
-  $("modulo-nota").textContent = consigliato ? "consigliato" : `consigliato: ${c.modulo}`;
+  $("modulo-nota").textContent = f.modulo === c.modulo ? "consigliato" : `consigliato: ${c.modulo}`;
   $("punti").textContent = num(f.punti_attesi);
   $("intervallo").textContent = f.intervallo_80
     ? `8 volte su 10 tra ${num(f.intervallo_80[0])} e ${num(f.intervallo_80[1])}` : "";
-  // Il resto della funzione usa `c` per i dati della formazione mostrata.
-  c = { ...c, ...f };
 
   // Probabilità di 0, 1, …, 5+ gol.
-  const prob = Object.values(c.prob_gol);
+  const prob = Object.values(f.prob_gol);
   prob[prob.length - 1] += Math.max(0, 1 - prob.reduce((a, b) => a + b, 0));
   const max = Math.max(...prob);
   $("gol").replaceChildren(...prob.map((p, i) =>
@@ -134,123 +486,134 @@ function mostraFormazione(c, f) {
       el("span", { class: "pct" }, pct(p)),
       el("div", { class: "barra", style: `height:${(p / max) * 70}%` }),
       el("span", { class: "n" }, i === prob.length - 1 ? `${i}+` : `${i}`))));
-  $("extra").textContent = `Modificatore difesa atteso +${num(c.modificatore_atteso)} · cambi attesi ${num(c.cambi_attesi)}`;
+  $("extra").textContent = `Modificatore difesa atteso +${num(f.modificatore_atteso)} · cambi attesi ${num(f.cambi_attesi)}`;
 
   for (const linea of document.querySelectorAll(".linea")) {
-    linea.replaceChildren(...c.titolari.filter((g) => g.ruolo === linea.dataset.ruolo).map(chip));
+    linea.replaceChildren(...f.titolari.filter((g) => g.ruolo === linea.dataset.ruolo).map(chip));
   }
 
-  const disponibili = c.panchina.filter((g) => g.p_voto > 0);
-  const fuori = c.panchina.filter((g) => g.p_voto === 0);
-  $("panchina").replaceChildren(...disponibili.map(riga));
+  $("panchina").replaceChildren(...f.panchina.filter((g) => g.p_voto > 0).map(riga));
+  const fuori = f.panchina.filter((g) => g.p_voto === 0);
   $("box-avvisi").hidden = fuori.length === 0;
-  $("avvisi").replaceChildren(...fuori.map((g) =>
-    el("li", {},
-      el("span", { class: `ruolo ${g.ruolo}` }, g.ruolo),
-      el("span", { class: "info" },
-        el("div", { class: "nome-riga" }, g.nome),
-        el("div", { class: "sotto" }, g.nota || g.stato)))));
+  $("avvisi").replaceChildren(...fuori.map((g) => el("li", {}, badgeRuolo(g.ruolo), infoRiga(g.nome, g.nota || g.stato))));
 
   $("alternative").replaceChildren(...c.alternative.map((a) =>
     el("li", { class: a.modulo === f.modulo ? "scelto" : "" },
-      el("button", { onclick: () => (a.modulo === attivo.c.modulo ? mostra(attivo.c, attivo.storico) : mostraModulo(attivo.c, a.modulo)) },
+      el("button", { onclick: () => (a.modulo === c.modulo ? mostra(attivo.c, attivo.storico) : mostraModulo(c, a.modulo)) },
         el("span", {}, a.modulo), el("span", {}, num(a.punti_attesi))))));
   $("moduli-aiuto").hidden = !c.alternative.some((a) => a.titolari);
 }
 
-async function scarica(percorso) {
-  const r = await fetch(`${OUTPUT}${percorso}?t=${Date.now()}`, { cache: "no-store" });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.json();
-}
-
-// Menu giornate: la prossima (consiglio attuale) e quelle passate salvate nello storico.
-function riempiGiornate(indice) {
-  const sel = $("giornata");
-  const passate = (indice.giornate || [])
-    .filter((g) => !(attuale.stato === "pronto" && g === attuale.giornata))
-    .sort((a, b) => b - a);
-  sel.replaceChildren(
-    el("option", { value: "attuale" }, `${attuale.giornata} · prossima`),
+function riempiGiornate(giornate) {
+  const passate = giornate.filter((g) => !attuale || g !== attuale.giornata);
+  $("giornata").replaceChildren(
+    el("option", { value: "attuale" }, `${attuale?.giornata ?? "–"} · prossima`),
     ...passate.map((g) => el("option", { value: String(g) }, `${g} · giocata`)));
   $("box-giornata").hidden = passate.length === 0;
+}
+
+async function caricaConsiglio() {
+  const codice = squadra.codice;
+  try {
+    const r = await rpc("leggi_consiglio", { p_codice: codice, p_giornata: null });
+    if (squadra?.codice !== codice) return;
+    attuale = r.consiglio;
+    scriviLocale(`consiglio:${codice}`, attuale);
+    riempiGiornate(r.giornate);
+    mostra(attuale);
+  } catch (e) {
+    const salvato = leggiLocale(`consiglio:${codice}`, null);
+    if (salvato) {
+      attuale = salvato;
+      mostra(salvato);
+      $("aggiornato").textContent += " · offline";
+    } else {
+      mostraErrore(`Non riesco a scaricare il consiglio: ${e.message}`);
+    }
+  }
 }
 
 $("giornata").addEventListener("change", async (e) => {
   const v = e.target.value;
   if (v === "attuale") return mostra(attuale);
   try {
-    mostra(await scarica(`storico/giornata-${v.padStart(2, "0")}.json`), true);
+    const r = await rpc("leggi_consiglio", { p_codice: squadra.codice, p_giornata: Number(v) });
+    mostra(r.consiglio, true);
   } catch (err) {
-    $("errore").textContent = `Non riesco a caricare la giornata ${v} (${err.message}).`;
-    $("errore").hidden = false;
+    mostraErrore(`Non riesco a caricare la giornata ${v}: ${err.message}`);
   }
 });
 
-async function carica() {
-  $("ricarica").disabled = true;
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && squadra && ($("giornata").value || "attuale") === "attuale") caricaConsiglio();
+});
+
+// --- Ricalcolo ------------------------------------------------------------------------------------
+
+async function ricalcola() {
+  if (modificata()) {
+    $("ricalcolo-stato").textContent = "Prima salva le modifiche.";
+    return;
+  }
+  $("ricalcola").disabled = true;
+  setTimeout(() => { $("ricalcola").disabled = false; }, 30000);
   try {
-    attuale = await scarica("consiglio.json");
-    try { localStorage.setItem("consiglio", JSON.stringify(attuale)); } catch {}
-    mostra(attuale);
-    riempiGiornate(await scarica("storico/indice.json").catch(() => ({})));
+    const esito = await rpc("richiedi_ricalcolo", { p_codice: squadra.codice });
+    $("ricalcolo-stato").textContent = {
+      avviato: "Ricalcolo avviato: il consiglio si aggiorna tra 1–2 minuti.",
+      gia_richiesto: "Ricalcolo già in corso…",
+      in_coda: "Ricalcolo in coda: il consiglio si aggiorna entro 15 minuti.",
+    }[esito] || esito;
+    attendiRicalcolo(squadra.codice);
   } catch (e) {
-    let salvato = null;
-    try { salvato = JSON.parse(localStorage.getItem("consiglio")); } catch {}
-    if (salvato) {
-      attuale = salvato;
-      mostra(salvato);
-      $("sottotitolo").textContent += " · offline";
-    } else {
-      $("errore").textContent = `Non riesco a scaricare il consiglio (${e.message}). Riprova tra poco.`;
-      $("errore").hidden = false;
-    }
-  } finally {
-    $("ricarica").disabled = false;
+    $("ricalcolo-stato").textContent = `Non riuscito: ${e.message}`;
+  }
+}
+$("ricalcola").addEventListener("click", ricalcola);
+
+async function attendiRicalcolo(codice, tentativi = 30) {
+  for (let i = 0; i < tentativi; i++) {
+    await new Promise((r) => setTimeout(r, 20000));
+    if (squadra?.codice !== codice) return;
+    try {
+      const s = await rpc("leggi_squadra", { p_codice: codice });
+      if (!s.ricalcolo_richiesto) {
+        await caricaConsiglio();
+        $("ricalcolo-stato").textContent = "Consiglio aggiornato ✓";
+        return;
+      }
+    } catch {}
   }
 }
 
-$("ricarica").addEventListener("click", () => { $("giornata").value = "attuale"; carica(); });
-document.addEventListener("visibilitychange", () => {
-  // Ricarica tornando sull'app, ma non se si sta guardando una giornata passata.
-  if (!document.hidden && ($("giornata").value || "attuale") === "attuale") carica();
-});
-carica();
-
-// --- Notifiche push ---------------------------------------------------------------
+// --- Notifiche push -------------------------------------------------------------------------------
 // Su iPhone funzionano solo con l'app aggiunta alla schermata Home (iOS 16.4+).
-// Il "codice" è l'iscrizione push di questo dispositivo: va salvato nei segreti del repository,
-// da cui il workflow lo legge per mandare gli avvisi.
+// L'iscrizione del telefono si salva sul server per la squadra aperta: un telefono può seguirne più d'una.
 
 const installata = () => navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
 
 function chiaveVapid() {
-  const b64 = (VAPID_PUBBLICA + "=".repeat((4 - (VAPID_PUBBLICA.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/");
+  const k = C.VAPID_PUBBLICA;
+  const b64 = (k + "=".repeat((4 - (k.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/");
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-}
-
-function mostraCodice(iscrizione) {
-  let nome = "";
-  try { nome = localStorage.getItem("nome") || ""; } catch {}
-  $("codice").value = JSON.stringify({ nome, iscrizione: iscrizione.toJSON() });
-  $("codice-dialog").showModal();
 }
 
 async function preparaNotifiche() {
   const testo = $("notifiche-testo");
+  $("notifiche-azioni").hidden = $("notifiche-disattiva").hidden = true;
   if (!("serviceWorker" in navigator) || !("PushManager" in window) || !installata()) {
-    testo.textContent = "Per ricevere gli avvisi (formazione cambiata, promemoria prima della consegna) " +
+    testo.textContent = "Per ricevere gli avvisi (consiglio pronto, formazione cambiata, promemoria prima della consegna) " +
       "apri questa pagina con Safari, tocca Condividi → Aggiungi alla schermata Home e apri l'app da lì.";
     return;
   }
   const reg = await navigator.serviceWorker.ready;
   const iscrizione = await reg.pushManager.getSubscription();
-  if (iscrizione) {
-    testo.textContent = "Notifiche attive su questo iPhone. Se non arrivano, controlla che il codice sia stato aggiunto.";
-    $("notifiche-codice").hidden = false;
-    $("notifiche-codice").onclick = () => mostraCodice(iscrizione);
+  if (iscrizione && leggiLocale(`notifiche:${squadra.codice}`, false)) {
+    testo.textContent = "Notifiche attive per questa squadra su questo telefono.";
+    $("notifiche-disattiva").hidden = false;
   } else {
     testo.textContent = "Ricevi un avviso quando esce il consiglio, quando cambia la formazione e prima della consegna.";
+    $("notifiche-nome").value = leggiLocale("nome", "");
     $("notifiche-azioni").hidden = false;
   }
 }
@@ -258,26 +621,40 @@ async function preparaNotifiche() {
 $("notifiche-attiva").addEventListener("click", async () => {
   const nome = $("notifiche-nome").value.trim();
   if (!nome) return $("notifiche-nome").focus();
-  try { localStorage.setItem("nome", nome); } catch {}
-  if ((await Notification.requestPermission()) !== "granted") {
-    $("notifiche-testo").textContent = "Permesso negato. Puoi riattivarlo da Impostazioni → Notifiche → Consigliere.";
-    return;
+  scriviLocale("nome", nome);
+  try {
+    if ((await Notification.requestPermission()) !== "granted") {
+      $("notifiche-testo").textContent = "Permesso negato. Puoi riattivarlo da Impostazioni → Notifiche → Consigliere.";
+      return;
+    }
+    const reg = await navigator.serviceWorker.ready;
+    const iscrizione = (await reg.pushManager.getSubscription())
+      || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chiaveVapid() }));
+    await rpc("salva_iscrizione", { p_codice: squadra.codice, p_nome: nome, p_iscrizione: iscrizione.toJSON() });
+    scriviLocale(`notifiche:${squadra.codice}`, true);
+    await preparaNotifiche();
+  } catch (e) {
+    mostraErrore(`Non riesco ad attivare le notifiche: ${e.message}`);
   }
-  const reg = await navigator.serviceWorker.ready;
-  const iscrizione = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chiaveVapid() });
-  $("notifiche-azioni").hidden = true;
-  await preparaNotifiche();
-  mostraCodice(iscrizione);
 });
 
-$("copia").addEventListener("click", async () => {
+$("notifiche-disattiva").addEventListener("click", async () => {
   try {
-    await navigator.clipboard.writeText($("codice").value);
-    $("copia").textContent = "Copiato ✓";
-  } catch {
-    $("codice").select();
+    const reg = await navigator.serviceWorker.ready;
+    const iscrizione = await reg.pushManager.getSubscription();
+    if (iscrizione) await rpc("rimuovi_iscrizione", { p_codice: squadra.codice, p_endpoint: iscrizione.endpoint });
+    scriviLocale(`notifiche:${squadra.codice}`, null);
+    await preparaNotifiche();
+  } catch (e) {
+    mostraErrore(`Non riesco a disattivare le notifiche: ${e.message}`);
   }
 });
+
+// --- Avvio ----------------------------------------------------------------------------------------
+
+// Link condiviso o notifica: ?squadra=<codice> apre direttamente quella squadra.
+const daLink = new URLSearchParams(location.search).get("squadra");
+if (daLink) history.replaceState(null, "", `${location.pathname}#/s/${daLink.toLowerCase()}`);
+instrada();
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
-preparaNotifiche();

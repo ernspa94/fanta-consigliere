@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Fanta Consigliere</title>
-  <meta name="description" content="La formazione consigliata per Fanta Lignano, aggiornata dalle probabili formazioni.">
+  <meta name="description" content="La formazione consigliata per la tua squadra di fantacalcio, dalle probabili formazioni.">
   <meta name="theme-color" content="#0f5132">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -17,99 +17,211 @@
 </head>
 <body>
   <header class="top">
-    <div>
-      <h1 id="squadra">Fanta Consigliere</h1>
-      <p id="sottotitolo" class="muted">Caricamento…</p>
+    <button id="indietro" class="icon-btn" aria-label="Le mie squadre" hidden>‹</button>
+    <div class="titoli">
+      <h1 id="titolo">Fanta Consigliere</h1>
+      <p id="sottotitolo" class="muted"></p>
     </div>
-    <button id="ricarica" class="icon-btn" aria-label="Aggiorna">↻</button>
+    <button id="ricarica" class="icon-btn" aria-label="Aggiorna" hidden>↻</button>
   </header>
 
-  <label class="scegli-giornata" id="box-giornata" hidden>
-    <span class="muted small">Giornata</span>
-    <select id="giornata"></select>
-  </label>
+  <p id="errore" class="card errore" hidden></p>
 
-  <main id="contenuto" hidden>
-    <section class="card" id="scadenza-box" hidden>
-      <p id="scadenza" class="scadenza"></p>
-    </section>
-
-    <section class="card attesa" id="attesa" hidden>
-      <h2 id="attesa-titolo"></h2>
-      <p class="muted">Fantacalcio.it non ha ancora pubblicato le probabili formazioni di questa giornata.
-        Il consiglio arriva appena escono (di solito tra martedì e mercoledì).</p>
-    </section>
-
-    <div id="formazione">
-    <p id="storico-nota" class="card nota" hidden></p>
-
-    <section class="card riepilogo">
-      <div class="modulo-box">
-        <span class="etichetta">Modulo</span>
-        <span id="modulo" class="modulo"></span>
-        <span id="modulo-nota" class="muted small"></span>
-      </div>
-      <div class="punti-box">
-        <span class="etichetta">Punti attesi</span>
-        <span id="punti" class="punti"></span>
-        <span id="intervallo" class="muted small"></span>
-      </div>
+  <!-- ===== Home: le mie squadre ===== -->
+  <main id="home" hidden>
+    <section class="card">
+      <h2>Le mie squadre</h2>
+      <ul id="mie-squadre" class="lista"></ul>
+      <p id="nessuna-squadra" class="muted small">Nessuna squadra su questo telefono: creane una o entra con il codice che ti ha mandato un amico.</p>
     </section>
 
     <section class="card">
-      <h2>Quanti gol facciamo</h2>
-      <div id="gol" class="gol-barre"></div>
-      <p id="extra" class="muted small"></p>
-    </section>
-
-    <section class="campo" aria-label="Titolari">
-      <div class="linea" data-ruolo="A"></div>
-      <div class="linea" data-ruolo="C"></div>
-      <div class="linea" data-ruolo="D"></div>
-      <div class="linea" data-ruolo="P"></div>
+      <h2>Nuova squadra</h2>
+      <form id="form-crea" class="campi">
+        <label>Nome della squadra<input name="nome" required maxlength="60" placeholder="es. Berlusca Dortmund"></label>
+        <label>Lega<input name="lega" maxlength="60" placeholder="es. Fanta Lignano"></label>
+        <label>Regolamento di partenza<select name="modello"></select></label>
+        <button class="btn">Crea squadra</button>
+      </form>
     </section>
 
     <section class="card">
-      <h2>Panchina <span class="muted small">in ordine di ingresso</span></h2>
-      <ol id="panchina" class="lista"></ol>
+      <h2>Entra con un codice</h2>
+      <form id="form-entra" class="riga-azioni">
+        <input name="codice" required placeholder="Codice squadra" autocapitalize="off" autocomplete="off">
+        <button class="btn">Entra</button>
+      </form>
     </section>
-
-    <section class="card" id="box-avvisi" hidden>
-      <h2>Non disponibili</h2>
-      <ul id="avvisi" class="lista"></ul>
-    </section>
-
-    <section class="card">
-      <h2>Moduli</h2>
-      <p id="moduli-aiuto" class="muted small aiuto">Tocca un modulo per vedere la sua formazione migliore.</p>
-      <ul id="alternative" class="alternative"></ul>
-    </section>
-    </div>
-
-    <section class="card" id="box-notifiche">
-      <h2>Notifiche</h2>
-      <p id="notifiche-testo" class="muted small"></p>
-      <div id="notifiche-azioni" class="riga-azioni" hidden>
-        <input id="notifiche-nome" placeholder="Il tuo nome" autocomplete="given-name">
-        <button id="notifiche-attiva" class="btn">Attiva</button>
-      </div>
-      <button id="notifiche-codice" class="btn secondario" hidden>Mostra il mio codice</button>
-    </section>
-
-    <p class="muted small centro" id="aggiornato"></p>
   </main>
 
-  <dialog id="codice-dialog">
-    <form method="dialog">
-      <h3>Il tuo codice notifiche</h3>
-      <p class="muted small">Mandalo a Ernesto: va aggiunto una volta sola per ricevere gli avvisi su questo iPhone.</p>
-      <textarea id="codice" readonly rows="6"></textarea>
-      <button type="button" id="copia" class="btn">Copia</button>
-      <button class="btn secondario">Chiudi</button>
-    </form>
-  </dialog>
+  <!-- ===== Una squadra ===== -->
+  <main id="squadra" hidden>
+    <nav class="schede" role="tablist">
+      <button data-scheda="consiglio" class="attiva">Consiglio</button>
+      <button data-scheda="rosa">Rosa</button>
+      <button data-scheda="regole">Regolamento</button>
+      <button data-scheda="condividi">Condividi</button>
+    </nav>
 
-  <p id="errore" class="card errore" hidden></p>
+    <!-- Consiglio -->
+    <div id="scheda-consiglio" class="scheda">
+      <label class="scegli-giornata" id="box-giornata" hidden>
+        <span class="muted small">Giornata</span>
+        <select id="giornata"></select>
+      </label>
+
+      <section class="card" id="scadenza-box" hidden>
+        <p id="scadenza" class="scadenza"></p>
+      </section>
+
+      <section class="card" id="stato-box" hidden>
+        <h2 id="stato-titolo"></h2>
+        <p id="stato-testo" class="muted"></p>
+      </section>
+
+      <div id="formazione" hidden>
+        <p id="storico-nota" class="card nota" hidden></p>
+
+        <section class="card riepilogo">
+          <div class="modulo-box">
+            <span class="etichetta">Modulo</span>
+            <span id="modulo" class="modulo"></span>
+            <span id="modulo-nota" class="muted small"></span>
+          </div>
+          <div class="punti-box">
+            <span class="etichetta">Punti attesi</span>
+            <span id="punti" class="punti"></span>
+            <span id="intervallo" class="muted small"></span>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Quanti gol facciamo</h2>
+          <div id="gol" class="gol-barre"></div>
+          <p id="extra" class="muted small"></p>
+        </section>
+
+        <section class="campo" aria-label="Titolari">
+          <div class="linea" data-ruolo="A"></div>
+          <div class="linea" data-ruolo="C"></div>
+          <div class="linea" data-ruolo="D"></div>
+          <div class="linea" data-ruolo="P"></div>
+        </section>
+
+        <section class="card">
+          <h2>Panchina <span class="muted small">in ordine di ingresso</span></h2>
+          <ol id="panchina" class="lista"></ol>
+        </section>
+
+        <section class="card" id="box-avvisi" hidden>
+          <h2>Non disponibili</h2>
+          <ul id="avvisi" class="lista"></ul>
+        </section>
+
+        <section class="card">
+          <h2>Moduli</h2>
+          <p id="moduli-aiuto" class="muted small aiuto">Tocca un modulo per vedere la sua formazione migliore.</p>
+          <ul id="alternative" class="alternative"></ul>
+        </section>
+      </div>
+
+      <section class="card">
+        <button id="ricalcola" class="btn secondario">Ricalcola adesso</button>
+        <p id="ricalcolo-stato" class="muted small centro"></p>
+      </section>
+
+      <section class="card" id="box-notifiche">
+        <h2>Notifiche</h2>
+        <p id="notifiche-testo" class="muted small"></p>
+        <div id="notifiche-azioni" class="riga-azioni" hidden>
+          <input id="notifiche-nome" placeholder="Il tuo nome" autocomplete="given-name">
+          <button id="notifiche-attiva" class="btn">Attiva</button>
+        </div>
+        <button id="notifiche-disattiva" class="btn secondario" hidden>Disattiva per questa squadra</button>
+      </section>
+
+      <p class="muted small centro" id="aggiornato"></p>
+    </div>
+
+    <!-- Rosa -->
+    <div id="scheda-rosa" class="scheda" hidden>
+      <section class="card">
+        <p id="rosa-conta" class="rosa-conta"></p>
+        <input id="cerca" type="search" placeholder="Cerca un giocatore da aggiungere…" autocomplete="off" autocapitalize="off">
+        <ul id="risultati" class="lista risultati"></ul>
+      </section>
+      <section class="card">
+        <ul id="rosa-lista" class="lista"></ul>
+        <p id="rosa-vuota" class="muted small">Rosa vuota: cerca i giocatori qui sopra e tocca +.</p>
+      </section>
+    </div>
+
+    <!-- Regolamento -->
+    <div id="scheda-regole" class="scheda" hidden>
+      <section class="card">
+        <h2>Parti da un modello</h2>
+        <div class="riga-azioni">
+          <select id="regole-modello"></select>
+          <button id="regole-applica" class="btn">Applica</button>
+        </div>
+        <p class="muted small">Sostituisce tutti i valori qui sotto. Poi cambia solo quello che nella tua lega è diverso.</p>
+      </section>
+
+      <section class="card">
+        <h2>Bonus e malus</h2>
+        <table class="tabella-bonus">
+          <thead><tr><th></th><th>P</th><th>D</th><th>C</th><th>A</th></tr></thead>
+          <tbody id="regole-bonus"></tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <h2>Moduli ammessi</h2>
+        <div id="regole-moduli" class="spunte"></div>
+      </section>
+
+      <section class="card campi">
+        <h2>Modificatore difesa</h2>
+        <label class="spunta"><input type="checkbox" id="md-attivo"> Attivo</label>
+        <label>Difensori minimi schierati<input type="number" id="md-minimo" min="3" max="5" inputmode="numeric"></label>
+        <p class="muted small">Media del voto in pagella di portiere e 3 migliori difensori:</p>
+        <div id="md-fasce" class="fasce"></div>
+      </section>
+
+      <section class="card campi">
+        <h2>Sostituzioni e partite</h2>
+        <label>Cambi massimi<input type="number" id="r-cambi" min="0" max="11" inputmode="numeric"></label>
+        <label>Punteggio del primo gol (scontri diretti)<input type="number" id="r-soglia" step="0.5" inputmode="decimal"></label>
+        <label>Punti per ogni gol successivo<input type="number" id="r-passo" step="0.5" min="1" inputmode="decimal"></label>
+      </section>
+
+      <p class="muted small">Per ora sono supportate le leghe Classic. Modificatore di centrocampo, capitano e Mantra non sono ancora gestiti.</p>
+    </div>
+
+    <!-- Condividi -->
+    <div id="scheda-condividi" class="scheda" hidden>
+      <section class="card campi">
+        <h2>Nome e lega</h2>
+        <label>Nome della squadra<input id="s-nome" maxlength="60"></label>
+        <label>Lega<input id="s-lega" maxlength="60"></label>
+      </section>
+      <section class="card">
+        <h2>Condividi la squadra</h2>
+        <p class="muted small">Chi ha questo link (o il codice) vede e modifica la squadra. Mandalo solo a chi la gestisce con te.</p>
+        <p class="codice-grande" id="codice"></p>
+        <button id="copia-link" class="btn">Copia link</button>
+      </section>
+      <section class="card">
+        <button id="esci" class="btn secondario">Togli la squadra da questo telefono</button>
+        <p class="muted small">La squadra non viene cancellata: puoi rientrare con il codice.</p>
+      </section>
+    </div>
+
+    <div id="barra-salva" class="barra-salva" hidden>
+      <span>Modifiche non salvate</span>
+      <button id="salva" class="btn">Salva</button>
+    </div>
+  </main>
 
   <dialog id="dettaglio">
     <form method="dialog">
@@ -125,6 +237,7 @@
     </form>
   </dialog>
 
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
