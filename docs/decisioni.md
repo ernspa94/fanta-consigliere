@@ -25,10 +25,20 @@ App che ogni giornata consiglia la formazione migliore per la nostra rosa, usand
 
 Repository: https://github.com/ernspa94/fanta-consigliere (pubblico). Il workflow `.github/workflows/consiglio.yml` ricalcola il consiglio ogni 2 ore (7–23 ora italiana) e fa un commit solo se cambia.
 
+## Squadre e database (Supabase)
+
+Dal 2 novembre 2026 l'app gestisce più squadre (gruppo di amici, leghe diverse), senza registrazione:
+- ogni squadra ha un codice segreto di 12 caratteri; chi ha il link `?squadra=<codice>` la vede e la modifica;
+- rosa, regolamento, consigli e iscrizioni alle notifiche stanno su Supabase (progetto `lqqkvfctyjtsainhmdkj`), non più nel repository pubblico;
+- l'app usa la chiave anon e può solo chiamare le funzioni di `supabase/schema.sql` (le tabelle le sono chiuse); il motore usa la chiave service_role (segreto `SUPABASE_SERVICE_KEY`);
+- "Ricalcola" chiama `richiedi_ricalcolo`, che avvia il workflow con il token `github_token` salvato nel Vault di Supabase (senza token il ricalcolo parte al giro successivo, entro 15 minuti);
+- senza Supabase configurato il motore usa ancora `config/rosa.json` e `config/regole/fanta-lignano.json` (comodo in locale);
+- regolamenti di partenza in `config/regole/`; le voci mancanti in quello di una squadra prendono il valore di `standard.json`.
+
 ## App (app/)
 
 Web app su https://ernspa94.github.io/fanta-consigliere/ — su iPhone: Safari → Condividi → Aggiungi alla schermata Home.
-Pubblicata da `.github/workflows/pages.yml` quando cambia `app/`. Il consiglio lo legge direttamente da `output/consiglio.json` su raw.githubusercontent.com, quindi si aggiorna senza ripubblicare l'app. Ne tiene una copia per l'uso offline.
+Pubblicata da `.github/workflows/pages.yml` quando cambia `app/`. Squadre e consigli arrivano da Supabase; listone (`output/listone.json`) e modelli di regolamento da raw.githubusercontent.com. Tiene una copia dell'ultimo consiglio per l'uso offline.
 
 ## Notifiche
 
