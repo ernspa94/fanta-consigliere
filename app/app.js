@@ -468,7 +468,7 @@ function mostra(c, storico = false) {
   $("formazione").hidden = false;
   $("storico-nota").hidden = !storico;
   $("storico-nota").textContent = storico
-    ? `Consiglio dato prima della scadenza della giornata ${c.giornata}, con le probabili di quel momento.` : "";
+    ? c.nota_storico || `Consiglio dato prima della scadenza della giornata ${c.giornata}, con le probabili di quel momento.` : "";
   mostraFormazione(c, c);
   $("aggiornato").textContent = `Consiglio cambiato l'ultima volta ${dataOra(c.aggiornato)}`;
 }

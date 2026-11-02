@@ -1,0 +1,40 @@
+name: Importa consiglio (manutenzione)
+
+# Copia nel database il consiglio di una giornata passata salvato nella storia del repository.
+on:
+  workflow_dispatch:
+    inputs:
+      codice:
+        description: "Codice della squadra"
+        required: true
+        type: string
+      sorgente:
+        description: "Commit e file, es. 6fce4b3~1:output/storico/giornata-10.json"
+        required: true
+        type: string
+      nota:
+        description: "Nota mostrata nell'app per questa giornata"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  importa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      # Valori da fuori: solo come variabili, mai dentro il comando.
+      CODICE: ${{ inputs.codice }}
+      SORGENTE: ${{ inputs.sorgente }}
+      NOTA: ${{ inputs.nota }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Importa
+        working-directory: engine
+        run: python3 -m fanta.importa --codice "$CODICE" --sorgente "$SORGENTE" --nota "$NOTA"
