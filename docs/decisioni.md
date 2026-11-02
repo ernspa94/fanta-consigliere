@@ -30,6 +30,13 @@ Repository: https://github.com/ernspa94/fanta-consigliere (pubblico). Il workflo
 Web app su https://ernspa94.github.io/fanta-consigliere/ — su iPhone: Safari → Condividi → Aggiungi alla schermata Home.
 Pubblicata da `.github/workflows/pages.yml` quando cambia `app/`. Il consiglio lo legge direttamente da `output/consiglio.json` su raw.githubusercontent.com, quindi si aggiorna senza ripubblicare l'app. Ne tiene una copia per l'uso offline.
 
+## Notifiche
+
+- `engine/fanta/notifiche.py` confronta il consiglio precedente con il nuovo e manda: consiglio pronto (nuova giornata), formazione cambiata (chi entra/esce e perché), promemoria 3 ore e 30 minuti prima della consegna (una volta sola, registrati in `output/notifiche_inviate.json`).
+- `engine/fanta/pianifica.py`: il workflow parte ogni 15 minuti ma ricalcola solo nelle 8 ore prima della scadenza, altrimenti ogni 2 ore di giorno.
+- Segreti del repository: `VAPID_PRIVATE_KEY` (chiave di firma; copia locale in `data/segreti/`, ignorata da git) e `PUSH_ISCRIZIONI` (lista JSON dei codici che l'app mostra dopo "Attiva notifiche").
+- La scadenza è la prima partita della giornata meno 1 minuto, letta da `/serie-a/calendario/N/2026-27`. Se la giornata delle probabili è già iniziata, il consiglio passa in stato `in_attesa` sulla successiva.
+
 ## Motore (engine/)
 
 Si lancia da `engine/` con `../.venv/bin/python -m fanta.consiglia` e salva il risultato in `output/consiglio.json`.
