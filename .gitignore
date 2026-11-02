@@ -8,3 +8,4 @@ data/voti/
 output/consiglio.json
 output/storico/
 output/notifiche_inviate.json
+.DS_Store
