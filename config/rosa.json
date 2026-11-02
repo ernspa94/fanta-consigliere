@@ -1,0 +1,234 @@
+{
+  "squadra": "Berlusca Dortmund",
+  "allenatori": "Gianmarco & ern",
+  "lega": "Fanta Lignano",
+  "crediti_residui": 34,
+  "aggiornata_il": "2026-11-02",
+  "giocatori": [
+    {
+      "nome": "Contini",
+      "ruolo": "P",
+      "squadra": "Napoli",
+      "quotazione": 1,
+      "fvm": 1,
+      "prezzo_acquisto": 1,
+      "fc_id": 2845
+    },
+    {
+      "nome": "Meret",
+      "ruolo": "P",
+      "squadra": "Napoli",
+      "quotazione": 10,
+      "fvm": 25,
+      "prezzo_acquisto": 24,
+      "fc_id": 572
+    },
+    {
+      "nome": "Milinkovic-Savic V.",
+      "ruolo": "P",
+      "squadra": "Napoli",
+      "quotazione": 8,
+      "fvm": 5,
+      "prezzo_acquisto": 4,
+      "fc_id": 2170
+    },
+    {
+      "nome": "Belghali",
+      "ruolo": "D",
+      "squadra": "Torino",
+      "quotazione": 11,
+      "fvm": 10,
+      "prezzo_acquisto": 1,
+      "fc_id": 7220
+    },
+    {
+      "nome": "Bellanova",
+      "ruolo": "D",
+      "squadra": "Atalanta",
+      "quotazione": 6,
+      "fvm": 10,
+      "prezzo_acquisto": 1,
+      "fc_id": 4887
+    },
+    {
+      "nome": "Couto",
+      "ruolo": "D",
+      "squadra": "Como",
+      "quotazione": 9,
+      "fvm": 12,
+      "prezzo_acquisto": 3,
+      "fc_id": 6727
+    },
+    {
+      "nome": "De Winter",
+      "ruolo": "D",
+      "squadra": "Milan",
+      "quotazione": 7,
+      "fvm": 9,
+      "prezzo_acquisto": 1,
+      "fc_id": 5739
+    },
+    {
+      "nome": "Dimarco",
+      "ruolo": "D",
+      "squadra": "Inter",
+      "quotazione": 24,
+      "fvm": 75,
+      "prezzo_acquisto": 54,
+      "fc_id": 254
+    },
+    {
+      "nome": "Dragusin",
+      "ruolo": "D",
+      "squadra": "Fiorentina",
+      "quotazione": 6,
+      "fvm": 7,
+      "prezzo_acquisto": 7,
+      "fc_id": 5365
+    },
+    {
+      "nome": "Spinazzola",
+      "ruolo": "D",
+      "squadra": "Napoli",
+      "quotazione": 7,
+      "fvm": 9,
+      "prezzo_acquisto": 8,
+      "fc_id": 1852
+    },
+    {
+      "nome": "Vojvoda",
+      "ruolo": "D",
+      "squadra": "Udinese",
+      "quotazione": 6,
+      "fvm": 9,
+      "prezzo_acquisto": 11,
+      "fc_id": 4994
+    },
+    {
+      "nome": "Adzic",
+      "ruolo": "C",
+      "squadra": "Sassuolo",
+      "quotazione": 12,
+      "fvm": 19,
+      "prezzo_acquisto": 1,
+      "fc_id": 6677
+    },
+    {
+      "nome": "Casadei",
+      "ruolo": "C",
+      "squadra": "Torino",
+      "quotazione": 6,
+      "fvm": 5,
+      "prezzo_acquisto": 6,
+      "fc_id": 5888
+    },
+    {
+      "nome": "Chukwueze",
+      "ruolo": "C",
+      "squadra": "Milan",
+      "quotazione": 11,
+      "fvm": 10,
+      "prezzo_acquisto": 1,
+      "fc_id": 4856
+    },
+    {
+      "nome": "Douglas Luiz",
+      "ruolo": "C",
+      "squadra": "Juventus",
+      "quotazione": 8,
+      "fvm": 13,
+      "prezzo_acquisto": 1,
+      "fc_id": 4911
+    },
+    {
+      "nome": "Ederson D.S.",
+      "ruolo": "C",
+      "squadra": "Atalanta",
+      "quotazione": 12,
+      "fvm": 21,
+      "prezzo_acquisto": 13,
+      "fc_id": 5792
+    },
+    {
+      "nome": "Goncalves P.",
+      "ruolo": "C",
+      "squadra": "Fiorentina",
+      "quotazione": 9,
+      "fvm": 13,
+      "prezzo_acquisto": 13,
+      "fc_id": 7625
+    },
+    {
+      "nome": "McTominay",
+      "ruolo": "C",
+      "squadra": "Napoli",
+      "quotazione": 23,
+      "fvm": 75,
+      "prezzo_acquisto": 95,
+      "fc_id": 4777
+    },
+    {
+      "nome": "Rabiot",
+      "ruolo": "C",
+      "squadra": "Milan",
+      "quotazione": 26,
+      "fvm": 98,
+      "prezzo_acquisto": 31,
+      "fc_id": 2379
+    },
+    {
+      "nome": "Bowie",
+      "ruolo": "A",
+      "squadra": "Sassuolo",
+      "quotazione": 12,
+      "fvm": 10,
+      "prezzo_acquisto": 3,
+      "fc_id": 7347
+    },
+    {
+      "nome": "Douvikas",
+      "ruolo": "A",
+      "squadra": "Como",
+      "quotazione": 26,
+      "fvm": 75,
+      "prezzo_acquisto": 70,
+      "fc_id": 7017
+    },
+    {
+      "nome": "Hojlund",
+      "ruolo": "A",
+      "squadra": "Napoli",
+      "quotazione": 25,
+      "fvm": 105,
+      "prezzo_acquisto": 125,
+      "fc_id": 6052
+    },
+    {
+      "nome": "Raspadori",
+      "ruolo": "A",
+      "squadra": "Atalanta",
+      "quotazione": 12,
+      "fvm": 7,
+      "prezzo_acquisto": 25,
+      "fc_id": 4371
+    },
+    {
+      "nome": "Tourè E.",
+      "ruolo": "A",
+      "squadra": "Parma",
+      "quotazione": 7,
+      "fvm": 11,
+      "prezzo_acquisto": 3,
+      "fc_id": 6229
+    },
+    {
+      "nome": "Varela G.",
+      "ruolo": "A",
+      "squadra": "Monza",
+      "quotazione": 18,
+      "fvm": 63,
+      "prezzo_acquisto": 3,
+      "fc_id": 7523
+    }
+  ]
+}

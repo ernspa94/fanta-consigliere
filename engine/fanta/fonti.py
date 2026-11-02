@@ -1,0 +1,126 @@
+"""Scarica e legge i dati da Fantacalcio.it: probabili formazioni e statistiche."""
+
+import json
+import re
+import time
+import urllib.request
+from pathlib import Path
+
+from bs4 import BeautifulSoup
+
+BASE = "https://www.fantacalcio.it"
+UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36"
+CACHE = Path(__file__).resolve().parents[2] / "data" / "cache"
+
+# /serie-a/squadre/<squadra>/<giocatore>/<id>
+LINK_GIOCATORE = re.compile(r"/squadre/([^/]+)/[^/]+/(\d+)")
+
+
+def scarica(percorso, max_eta_min=30):
+    """Scarica una pagina, riusando la copia in cache se è più recente di max_eta_min."""
+    CACHE.mkdir(parents=True, exist_ok=True)
+    file = CACHE / (percorso.strip("/").replace("/", "_") + ".html")
+    if file.exists() and time.time() - file.stat().st_mtime < max_eta_min * 60:
+        return file.read_text(encoding="utf-8")
+    req = urllib.request.Request(BASE + percorso, headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        html = r.read().decode("utf-8")
+    file.write_text(html, encoding="utf-8")
+    return html
+
+
+def _id_squadra(a):
+    m = LINK_GIOCATORE.search(a.get("href", ""))
+    return (int(m.group(2)), m.group(1)) if m else (None, None)
+
+
+def _numero(testo):
+    testo = testo.strip().replace(",", ".")
+    try:
+        return float(testo)
+    except ValueError:
+        return 0.0
+
+
+def leggi_probabili(html):
+    """Partite della giornata e, per ogni giocatore citato, % di titolarità e stato."""
+    soup = BeautifulSoup(html, "html.parser")
+    giornata = int(re.search(r"Giornata\s+(\d+)", soup.get_text()).group(1))
+
+    partite, giocatori = [], {}
+    for blocco in soup.select(".match.match-item"):
+        casa = blocco.select_one("label.team-home a.team-name")["href"].rstrip("/").split("/")[-1]
+        trasferta = blocco.select_one("label.team-away a.team-name")["href"].rstrip("/").split("/")[-1]
+        partite.append({"casa": casa, "trasferta": trasferta})
+
+        for card in blocco.select("div.team-card"):
+            for lista, tipo in (("ul.starters", "titolare"), ("ul.reserves", "panchina")):
+                for li in card.select(f"{lista} li.player-item"):
+                    pid, squadra = _id_squadra(li.select_one("a.player-link"))
+                    pct = li.select_one(".progress-value")
+                    giocatori[pid] = {
+                        "nome": li.select_one("a.player-link span").get_text(strip=True),
+                        "squadra": squadra,
+                        "ruolo": li.select_one("span.role")["data-value"].upper(),
+                        "lista": tipo,
+                        "pct_titolare": _numero(pct.get_text().replace("%", "")) / 100 if pct else 0.0,
+                        "stato": "ok",
+                    }
+
+        for sezione, stato in (("section.injureds", "infortunato"), ("section.suspendeds", "squalificato")):
+            for a in blocco.select(f"{sezione} a.player-link"):
+                pid, squadra = _id_squadra(a)
+                info = giocatori.setdefault(pid, {"nome": a.get_text(strip=True), "squadra": squadra,
+                                                  "ruolo": None, "lista": None, "pct_titolare": 0.0})
+                info["stato"] = stato
+                info["pct_titolare"] = 0.0
+                nota = a.find_next_sibling("p")
+                if nota:
+                    info["nota"] = nota.get_text(" ", strip=True)
+
+    return {"giornata": giornata, "partite": partite, "giocatori": giocatori}
+
+
+def leggi_statistiche(html):
+    """Statistiche stagionali per giocatore (chiave: id Fantacalcio.it)."""
+    soup = BeautifulSoup(html, "html.parser")
+    out = {}
+    for tr in soup.select("tr.player-row"):
+        pid, squadra = _id_squadra(tr.select_one("a.player-link"))
+        if pid is None:
+            continue
+        col = {td["data-col-key"]: td.get_text(strip=True) for td in tr.select("td[data-col-key]")}
+        rig_segnati, rig_tirati = (int(x) for x in col.get("rig", "0 / 0").replace(" ", "").split("/"))
+        out[pid] = {
+            "nome": tr.select_one("a.player-link span").get_text(strip=True),
+            "squadra": squadra,
+            "ruolo": tr["data-filter-role-classic"].upper(),
+            "pv": int(_numero(col.get("pg", "0"))),
+            "mv": _numero(col.get("mv", "0")),
+            "fm": _numero(col.get("mfv", "0")),
+            "gol": int(_numero(col.get("gol", "0"))),
+            "gs": int(_numero(col.get("gs", "0"))),
+            "rig_segnati": rig_segnati,
+            "rig_tirati": rig_tirati,
+            "rp": int(_numero(col.get("rp", "0"))),
+            "ass": int(_numero(col.get("ass", "0"))),
+            "amm": int(_numero(col.get("amm", "0"))),
+            "esp": int(_numero(col.get("esp", "0"))),
+        }
+    return out
+
+
+def carica_tutto(stagione="2026-27", stagione_prec="2025-26"):
+    return {
+        "probabili": leggi_probabili(scarica("/probabili-formazioni-serie-a")),
+        "stat": leggi_statistiche(scarica(f"/statistiche-serie-a/{stagione}", max_eta_min=360)),
+        "stat_prec": leggi_statistiche(scarica(f"/statistiche-serie-a/{stagione_prec}", max_eta_min=60 * 24 * 30)),
+    }
+
+
+if __name__ == "__main__":
+    dati = carica_tutto()
+    p = dati["probabili"]
+    print("giornata", p["giornata"], "partite", len(p["partite"]), "giocatori", len(p["giocatori"]))
+    print("stat", len(dati["stat"]), "stat_prec", len(dati["stat_prec"]))
+    print(json.dumps(p["partite"][:3]))
