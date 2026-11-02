@@ -24,7 +24,25 @@
     <button id="ricarica" class="icon-btn" aria-label="Aggiorna">↻</button>
   </header>
 
+  <label class="scegli-giornata" id="box-giornata" hidden>
+    <span class="muted small">Giornata</span>
+    <select id="giornata"></select>
+  </label>
+
   <main id="contenuto" hidden>
+    <section class="card" id="scadenza-box" hidden>
+      <p id="scadenza" class="scadenza"></p>
+    </section>
+
+    <section class="card attesa" id="attesa" hidden>
+      <h2 id="attesa-titolo"></h2>
+      <p class="muted">Fantacalcio.it non ha ancora pubblicato le probabili formazioni di questa giornata.
+        Il consiglio arriva appena escono (di solito tra martedì e mercoledì).</p>
+    </section>
+
+    <div id="formazione">
+    <p id="storico-nota" class="card nota" hidden></p>
+
     <section class="card riepilogo">
       <div class="modulo-box">
         <span class="etichetta">Modulo</span>
@@ -64,9 +82,30 @@
       <h2>Altri moduli</h2>
       <ul id="alternative" class="alternative"></ul>
     </section>
+    </div>
+
+    <section class="card" id="box-notifiche">
+      <h2>Notifiche</h2>
+      <p id="notifiche-testo" class="muted small"></p>
+      <div id="notifiche-azioni" class="riga-azioni" hidden>
+        <input id="notifiche-nome" placeholder="Il tuo nome" autocomplete="given-name">
+        <button id="notifiche-attiva" class="btn">Attiva</button>
+      </div>
+      <button id="notifiche-codice" class="btn secondario" hidden>Mostra il mio codice</button>
+    </section>
 
     <p class="muted small centro" id="aggiornato"></p>
   </main>
+
+  <dialog id="codice-dialog">
+    <form method="dialog">
+      <h3>Il tuo codice notifiche</h3>
+      <p class="muted small">Mandalo a Ernesto: va aggiunto una volta sola per ricevere gli avvisi su questo iPhone.</p>
+      <textarea id="codice" readonly rows="6"></textarea>
+      <button type="button" id="copia" class="btn">Copia</button>
+      <button class="btn secondario">Chiudi</button>
+    </form>
+  </dialog>
 
   <p id="errore" class="card errore" hidden></p>
 

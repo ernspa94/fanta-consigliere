@@ -1,6 +1,6 @@
 // Tiene in cache i file dell'app, così si apre anche senza rete.
 // Il consiglio non passa da qui: app.js lo scarica sempre fresco e ne tiene una copia in localStorage.
-const VERSIONE = "v1";
+const VERSIONE = "v2";
 const FILE = ["./", "index.html", "style.css", "app.js", "manifest.webmanifest", "icons/icon-180.png", "icons/icon-192.png"];
 
 self.addEventListener("install", (e) => {
@@ -11,6 +11,26 @@ self.addEventListener("install", (e) => {
 self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys().then((chiavi) => Promise.all(chiavi.filter((k) => k !== VERSIONE).map((k) => caches.delete(k)))));
   self.clients.claim();
+});
+
+// Notifiche mandate dal workflow (engine/fanta/notifiche.py): {titolo, testo, url}.
+self.addEventListener("push", (e) => {
+  let n = { titolo: "Fanta Consigliere", testo: "", url: "./" };
+  try { n = { ...n, ...e.data.json() }; } catch {}
+  e.waitUntil(self.registration.showNotification(n.titolo, {
+    body: n.testo,
+    icon: "icons/icon-192.png",
+    badge: "icons/icon-192.png",
+    data: { url: n.url },
+  }));
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((finestre) => {
+    for (const f of finestre) if ("focus" in f) return f.focus();
+    return self.clients.openWindow(e.notification.data.url || "./");
+  }));
 });
 
 self.addEventListener("fetch", (e) => {

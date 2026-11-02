@@ -1,6 +1,9 @@
-// Legge output/consiglio.json direttamente dal repository: si aggiorna appena il workflow fa un commit,
+// Legge output/ direttamente dal repository: si aggiorna appena il workflow fa un commit,
 // senza dover ripubblicare l'app.
-const FONTE = "https://raw.githubusercontent.com/ernspa94/fanta-consigliere/main/output/consiglio.json";
+const OUTPUT = "https://raw.githubusercontent.com/ernspa94/fanta-consigliere/main/output/";
+const VAPID_PUBBLICA = "BKxnXkLdxzZeb3RJUsDxEcJpSKHgkDbZt0mHGXa6cjIw0y0nSHNisqKBPiWrnKlYXPVDwLXrG3E2ljxq_v0Hj5I";
+
+let attuale = null; // consiglio della prossima giornata
 
 const $ = (id) => document.getElementById(id);
 const sigla = (sq) => (sq || "").slice(0, 3).toUpperCase();
@@ -59,9 +62,39 @@ function riga(g) {
       el("span", { class: `badge ${classeVoto(g.p_voto)}` }, num(g.punti_attesi))));
 }
 
-function mostra(c) {
+const dataOra = (iso) => new Date(iso).toLocaleString("it-IT", {
+  weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+
+function mostraScadenza(c, storico) {
+  const box = $("scadenza-box");
+  box.hidden = !c.scadenza || storico;
+  if (box.hidden) return;
+  const ore = (new Date(c.scadenza) - Date.now()) / 36e5;
+  $("scadenza").textContent = ore > 0
+    ? `Consegna entro ${dataOra(c.scadenza)}${ore < 24 ? ` (tra ${ore < 1 ? Math.round(ore * 60) + " min" : Math.round(ore) + " ore"})` : ""}`
+    : "Scadenza passata";
+  $("scadenza").classList.toggle("vicina", ore > 0 && ore < 3);
+}
+
+function mostra(c, storico = false) {
   $("squadra").textContent = c.squadra;
   $("sottotitolo").textContent = `Giornata ${c.giornata} · Fanta Lignano`;
+  $("contenuto").hidden = false;
+  $("errore").hidden = true;
+  mostraScadenza(c, storico);
+
+  const inAttesa = c.stato === "in_attesa";
+  $("attesa").hidden = !inAttesa;
+  $("formazione").hidden = inAttesa;
+  $("storico-nota").hidden = !storico;
+  $("storico-nota").textContent = storico
+    ? `Consiglio dato prima della scadenza della giornata ${c.giornata}, con le probabili di quel momento.` : "";
+  if (inAttesa) {
+    $("attesa-titolo").textContent = `Giornata ${c.giornata}: in attesa delle probabili`;
+    $("aggiornato").textContent = "";
+    return;
+  }
+
   $("modulo").textContent = c.modulo;
   $("punti").textContent = num(c.punti_attesi);
   $("intervallo").textContent = `8 volte su 10 tra ${num(c.intervallo_80[0])} e ${num(c.intervallo_80[1])}`;
@@ -95,26 +128,50 @@ function mostra(c) {
   $("alternative").replaceChildren(...c.alternative.map((a) =>
     el("li", { class: a.modulo === c.modulo ? "scelto" : "" }, el("span", {}, a.modulo), el("span", {}, num(a.punti_attesi)))));
 
-  const quando = new Date(c.aggiornato);
-  $("aggiornato").textContent = `Consiglio cambiato l'ultima volta ${quando.toLocaleString("it-IT", {
-    weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}`;
-
-  $("contenuto").hidden = false;
-  $("errore").hidden = true;
+  $("aggiornato").textContent = `Consiglio cambiato l'ultima volta ${dataOra(c.aggiornato)}`;
 }
+
+async function scarica(percorso) {
+  const r = await fetch(`${OUTPUT}${percorso}?t=${Date.now()}`, { cache: "no-store" });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+// Menu giornate: la prossima (consiglio attuale) e quelle passate salvate nello storico.
+function riempiGiornate(indice) {
+  const sel = $("giornata");
+  const passate = (indice.giornate || [])
+    .filter((g) => !(attuale.stato === "pronto" && g === attuale.giornata))
+    .sort((a, b) => b - a);
+  sel.replaceChildren(
+    el("option", { value: "attuale" }, `${attuale.giornata} · prossima`),
+    ...passate.map((g) => el("option", { value: String(g) }, `${g} · giocata`)));
+  $("box-giornata").hidden = passate.length === 0;
+}
+
+$("giornata").addEventListener("change", async (e) => {
+  const v = e.target.value;
+  if (v === "attuale") return mostra(attuale);
+  try {
+    mostra(await scarica(`storico/giornata-${v.padStart(2, "0")}.json`), true);
+  } catch (err) {
+    $("errore").textContent = `Non riesco a caricare la giornata ${v} (${err.message}).`;
+    $("errore").hidden = false;
+  }
+});
 
 async function carica() {
   $("ricarica").disabled = true;
   try {
-    const r = await fetch(`${FONTE}?t=${Date.now()}`, { cache: "no-store" });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const c = await r.json();
-    try { localStorage.setItem("consiglio", JSON.stringify(c)); } catch {}
-    mostra(c);
+    attuale = await scarica("consiglio.json");
+    try { localStorage.setItem("consiglio", JSON.stringify(attuale)); } catch {}
+    mostra(attuale);
+    riempiGiornate(await scarica("storico/indice.json").catch(() => ({})));
   } catch (e) {
     let salvato = null;
     try { salvato = JSON.parse(localStorage.getItem("consiglio")); } catch {}
     if (salvato) {
+      attuale = salvato;
       mostra(salvato);
       $("sottotitolo").textContent += " · offline";
     } else {
@@ -126,8 +183,74 @@ async function carica() {
   }
 }
 
-$("ricarica").addEventListener("click", carica);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) carica(); });
+$("ricarica").addEventListener("click", () => { $("giornata").value = "attuale"; carica(); });
+document.addEventListener("visibilitychange", () => {
+  // Ricarica tornando sull'app, ma non se si sta guardando una giornata passata.
+  if (!document.hidden && ($("giornata").value || "attuale") === "attuale") carica();
+});
 carica();
 
+// --- Notifiche push ---------------------------------------------------------------
+// Su iPhone funzionano solo con l'app aggiunta alla schermata Home (iOS 16.4+).
+// Il "codice" è l'iscrizione push di questo dispositivo: va salvato nei segreti del repository,
+// da cui il workflow lo legge per mandare gli avvisi.
+
+const installata = () => navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
+
+function chiaveVapid() {
+  const b64 = (VAPID_PUBBLICA + "=".repeat((4 - (VAPID_PUBBLICA.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/");
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+}
+
+function mostraCodice(iscrizione) {
+  let nome = "";
+  try { nome = localStorage.getItem("nome") || ""; } catch {}
+  $("codice").value = JSON.stringify({ nome, iscrizione: iscrizione.toJSON() });
+  $("codice-dialog").showModal();
+}
+
+async function preparaNotifiche() {
+  const testo = $("notifiche-testo");
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !installata()) {
+    testo.textContent = "Per ricevere gli avvisi (formazione cambiata, promemoria prima della consegna) " +
+      "apri questa pagina con Safari, tocca Condividi → Aggiungi alla schermata Home e apri l'app da lì.";
+    return;
+  }
+  const reg = await navigator.serviceWorker.ready;
+  const iscrizione = await reg.pushManager.getSubscription();
+  if (iscrizione) {
+    testo.textContent = "Notifiche attive su questo iPhone. Se non arrivano, controlla che il codice sia stato aggiunto.";
+    $("notifiche-codice").hidden = false;
+    $("notifiche-codice").onclick = () => mostraCodice(iscrizione);
+  } else {
+    testo.textContent = "Ricevi un avviso quando esce il consiglio, quando cambia la formazione e prima della consegna.";
+    $("notifiche-azioni").hidden = false;
+  }
+}
+
+$("notifiche-attiva").addEventListener("click", async () => {
+  const nome = $("notifiche-nome").value.trim();
+  if (!nome) return $("notifiche-nome").focus();
+  try { localStorage.setItem("nome", nome); } catch {}
+  if ((await Notification.requestPermission()) !== "granted") {
+    $("notifiche-testo").textContent = "Permesso negato. Puoi riattivarlo da Impostazioni → Notifiche → Consigliere.";
+    return;
+  }
+  const reg = await navigator.serviceWorker.ready;
+  const iscrizione = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chiaveVapid() });
+  $("notifiche-azioni").hidden = true;
+  await preparaNotifiche();
+  mostraCodice(iscrizione);
+});
+
+$("copia").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText($("codice").value);
+    $("copia").textContent = "Copiato ✓";
+  } catch {
+    $("codice").select();
+  }
+});
+
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+preparaNotifiche();

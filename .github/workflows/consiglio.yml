@@ -2,8 +2,9 @@ name: Aggiorna consiglio formazione
 
 on:
   schedule:
-    # Ogni 2 ore dalle 7 alle 23 ora italiana (orari in UTC).
-    - cron: "0 6-22/2 * * *"
+    # Ogni 15 minuti: pianifica.py decide se serve ricalcolare
+    # (sempre nelle 8 ore prima della scadenza, altrimenti ogni 2 ore di giorno).
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -20,28 +21,46 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Serve ricalcolare?
+        id: piano
+        working-directory: engine
+        run: python3 -m fanta.pianifica
+
       - uses: actions/setup-python@v5
+        if: steps.piano.outputs.esegui == 'true'
         with:
           python-version: "3.13"
           cache: pip
 
       - name: Installa dipendenze
+        if: steps.piano.outputs.esegui == 'true'
         run: pip install -r requirements.txt
 
-      - name: Test regole della lega
+      - name: Test
+        if: steps.piano.outputs.esegui == 'true'
         working-directory: engine
         run: python -m pytest -q tests
 
       - name: Calcola il consiglio
+        if: steps.piano.outputs.esegui == 'true'
         working-directory: engine
-        run: python -m fanta.consiglia
-
-      - name: Salva se il consiglio è cambiato
         run: |
-          # L'orario di aggiornamento cambia sempre: si confronta tutto il resto.
-          if git cat-file -e HEAD:output/consiglio.json 2>/dev/null && \
-             diff <(git show HEAD:output/consiglio.json | jq -S 'del(.aggiornato)') \
-                  <(jq -S 'del(.aggiornato)' output/consiglio.json) > /dev/null; then
+          git show HEAD:output/consiglio.json > /tmp/precedente.json 2>/dev/null || : > /tmp/precedente.json
+          python -m fanta.consiglia
+
+      - name: Manda le notifiche
+        if: steps.piano.outputs.esegui == 'true'
+        working-directory: engine
+        env:
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          PUSH_ISCRIZIONI: ${{ secrets.PUSH_ISCRIZIONI }}
+        run: python -m fanta.notifiche /tmp/precedente.json
+
+      - name: Salva se è cambiato qualcosa
+        if: steps.piano.outputs.esegui == 'true'
+        run: |
+          # consiglia.py non riscrive i file se è cambiato solo l'orario di aggiornamento.
+          if [ -z "$(git status --porcelain output)" ]; then
             echo "Nessuna novità."
             exit 0
           fi

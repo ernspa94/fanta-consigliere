@@ -4,13 +4,16 @@ import json
 import re
 import time
 import urllib.request
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from bs4 import BeautifulSoup
 
 BASE = "https://www.fantacalcio.it"
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36"
 CACHE = Path(__file__).resolve().parents[2] / "data" / "cache"
+ROMA = ZoneInfo("Europe/Rome")
 
 # /serie-a/squadre/<squadra>/<giocatore>/<id>
 LINK_GIOCATORE = re.compile(r"/squadre/([^/]+)/[^/]+/(\d+)")
@@ -108,6 +111,17 @@ def leggi_statistiche(html):
             "esp": int(_numero(col.get("esp", "0"))),
         }
     return out
+
+
+def inizio_giornata(giornata, stagione="2026-27"):
+    """Data e ora della prima partita della giornata (la pagina della giornata mostra quella)."""
+    soup = BeautifulSoup(scarica(f"/serie-a/calendario/{giornata}/{stagione}", max_eta_min=360), "html.parser")
+    box = soup.select_one("div.match-date")
+    data = box.select_one('meta[itemprop="startDate"]')["content"]
+    ora = box.select_one("span.hours").get_text(strip=True)
+    if data.startswith("1970"):
+        return None  # orario non ancora fissato
+    return datetime.fromisoformat(f"{data}T{ora}").replace(tzinfo=ROMA)
 
 
 def carica_tutto(stagione="2026-27", stagione_prec="2025-26"):
