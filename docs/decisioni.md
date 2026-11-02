@@ -25,6 +25,11 @@ App che ogni giornata consiglia la formazione migliore per la nostra rosa, usand
 
 Repository: https://github.com/ernspa94/fanta-consigliere (pubblico). Il workflow `.github/workflows/consiglio.yml` ricalcola il consiglio ogni 2 ore (7–23 ora italiana) e fa un commit solo se cambia.
 
+## App (app/)
+
+Web app su https://ernspa94.github.io/fanta-consigliere/ — su iPhone: Safari → Condividi → Aggiungi alla schermata Home.
+Pubblicata da `.github/workflows/pages.yml` quando cambia `app/`. Il consiglio lo legge direttamente da `output/consiglio.json` su raw.githubusercontent.com, quindi si aggiorna senza ripubblicare l'app. Ne tiene una copia per l'uso offline.
+
 ## Motore (engine/)
 
 Si lancia da `engine/` con `../.venv/bin/python -m fanta.consiglia` e salva il risultato in `output/consiglio.json`.
