@@ -114,23 +114,34 @@ def leggi(html):
     return out
 
 
+def _nome_fc(nome):
+    """Fantacalcio.it scrive "Cognome X." o "Cognome Jo." / "Cognome D.S." per distinguere gli omonimi:
+    le parti con il punto sono iniziali del nome, non cognome. Ritorna (parole del cognome, iniziali)."""
+    pezzi = nome.split()
+    cognome = [p for p in parole(" ".join(x for x in pezzi if not x.endswith("."))) if len(p) > 1]
+    iniziali = ["".join(parole(x)) for x in pezzi if x.endswith(".")]
+    return cognome, [i for i in iniziali if i]
+
+
 def _trova(nome, parole_link, candidati):
     """Il giocatore di Fantacalcio.it (tra quelli della squadra) che corrisponde al nome di Sky, o None."""
     dette = set(parole(nome)) | set(parole_link)
     migliori, top = [], 0.0
     for c in candidati:
-        p = parole(c["nome"])
-        cognome = [x for x in p if len(x) > 1]
-        iniziali = [x for x in p if len(x) == 1]
+        cognome, iniziali = _nome_fc(c["nome"])
         if not cognome:
             continue
         quota = sum(x in dette for x in cognome) / len(cognome)
         if quota < 0.5:
             continue
-        # Iniziale del nome ("Martinez L." ↔ "lautaro-martinez") come spareggio tra omonimi.
+        # Iniziale del nome come spareggio tra omonimi: "Martinez L." ↔ "lautaro-martinez",
+        # "Martinez Jo." ↔ "josep-martinez".
         altre = [x for x in dette if x not in cognome]
-        if iniziali and altre and not any(a[0] == iniziali[0] for a in altre):
-            quota -= 0.4
+        if iniziali and altre:
+            if any(a.startswith(iniziali[0]) for a in altre):
+                quota += 0.1
+            elif not any(a[0] == iniziali[0][0] for a in altre):
+                quota -= 0.4
         if quota > top + 1e-9:
             migliori, top = [c], quota
         elif abs(quota - top) < 1e-9:
@@ -150,12 +161,12 @@ def _trova(nome, parole_link, candidati):
 
 
 def abbina(sky, listone):
-    """{id Fantacalcio.it: {"sky": titolare|dubbio|riserva|squalificato|indisponibile, "ufficiale": bool}}
-    più l'elenco dei nomi non riconosciuti (per controllo)."""
+    """{id Fantacalcio.it: {"sky": titolare|dubbio|riserva|squalificato|indisponibile, "ufficiale": bool}},
+    l'elenco dei nomi non riconosciuti (per controllo) e {id: nome completo} per la ricerca."""
     per_squadra = {}
     for g in listone:
         per_squadra.setdefault(g["squadra"], []).append(g)
-    esito, sconosciuti = {}, []
+    esito, sconosciuti, alias = {}, [], {}
     for squadra, d in sky["squadre"].items():
         candidati = per_squadra.get(squadra, [])
         voci = [(n, pl, "titolare") for n, pl in d["titolari"]]
@@ -167,9 +178,11 @@ def abbina(sky, listone):
             if g is None:
                 sconosciuti.append(f"{nome} ({squadra})")
                 continue
+            if pl:  # nome completo dal link di Sky ("lautaro martinez"): serve alla ricerca nell'app
+                alias[g["id"]] = " ".join(pl)
             prima = esito.get(g["id"], {}).get("sky")
             # Titolare e anche "in dubbio": vale il dubbio.
             if prima == "titolare" and tipo == "dubbio" or prima is None or tipo in ("squalificato", "indisponibile"):
                 esito[g["id"]] = {"sky": tipo if not (prima == "titolare" and tipo == "dubbio") else "dubbio",
                                   "ufficiale": d["ufficiale"]}
-    return esito, sconosciuti
+    return esito, sconosciuti, alias

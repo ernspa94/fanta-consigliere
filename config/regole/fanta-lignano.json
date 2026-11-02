@@ -4,26 +4,95 @@
   "fonte_regolamento": "Regolamento Fanta Lignano 20262027.pages",
   "piattaforma": "Leghe Fantacalcio",
   "fonte_voti": "Redazione Fantacalcio",
-
-  "rosa": { "P": 3, "D": 8, "C": 8, "A": 6 },
-
-  "moduli": ["3-4-3", "3-5-2", "4-5-1", "4-4-2", "4-3-3", "5-3-2", "5-4-1"],
-
-  "bonus_malus": {
-    "gol":              { "P": 3.0,  "D": 3.0,  "C": 3.0,  "A": 3.0 },
-    "gol_rigore":       { "P": 3.0,  "D": 3.0,  "C": 3.0,  "A": 3.0 },
-    "assist":           { "P": 1.0,  "D": 1.0,  "C": 1.0,  "A": 1.0 },
-    "rigore_parato":    { "P": 3.0,  "D": 0.0,  "C": 0.0,  "A": 0.0 },
-    "porta_imbattuta":  { "P": 1.0,  "D": 0.0,  "C": 0.0,  "A": 0.0 },
-    "gol_vittoria":     { "P": 0.0,  "D": 0.0,  "C": 0.0,  "A": 0.0 },
-    "gol_subito":       { "P": -1.0, "D": 0.0,  "C": 0.0,  "A": 0.0 },
-    "autogol":          { "P": -2.0, "D": -2.0, "C": -2.0, "A": -2.0 },
-    "ammonizione":      { "P": -0.5, "D": -0.5, "C": -0.5, "A": -0.5 },
-    "espulsione":       { "P": -1.0, "D": -1.0, "C": -1.0, "A": -1.0 },
-    "mvp_panini":       { "P": 0.5,  "D": 0.5,  "C": 0.5,  "A": 0.5 },
-    "rigore_sbagliato": { "P": -3.0, "D": -3.0, "C": -3.0, "A": -3.0 }
+  "rosa": {
+    "P": 3,
+    "D": 8,
+    "C": 8,
+    "A": 6
   },
-
+  "moduli": [
+    "3-4-3",
+    "3-5-2",
+    "4-5-1",
+    "4-4-2",
+    "4-3-3",
+    "5-3-2",
+    "5-4-1"
+  ],
+  "bonus_malus": {
+    "gol": {
+      "P": 3.0,
+      "D": 3.0,
+      "C": 3.0,
+      "A": 3.0
+    },
+    "gol_rigore": {
+      "P": 3.0,
+      "D": 3.0,
+      "C": 3.0,
+      "A": 3.0
+    },
+    "assist": {
+      "P": 1.0,
+      "D": 1.0,
+      "C": 1.0,
+      "A": 1.0
+    },
+    "rigore_parato": {
+      "P": 3.0,
+      "D": 0.0,
+      "C": 0.0,
+      "A": 0.0
+    },
+    "porta_imbattuta": {
+      "P": 1.0,
+      "D": 0.0,
+      "C": 0.0,
+      "A": 0.0
+    },
+    "gol_vittoria": {
+      "P": 0.0,
+      "D": 0.0,
+      "C": 0.0,
+      "A": 0.0
+    },
+    "gol_subito": {
+      "P": -1.0,
+      "D": 0.0,
+      "C": 0.0,
+      "A": 0.0
+    },
+    "autogol": {
+      "P": -2.0,
+      "D": -2.0,
+      "C": -2.0,
+      "A": -2.0
+    },
+    "ammonizione": {
+      "P": -0.5,
+      "D": -0.5,
+      "C": -0.5,
+      "A": -0.5
+    },
+    "espulsione": {
+      "P": -1.0,
+      "D": -1.0,
+      "C": -1.0,
+      "A": -1.0
+    },
+    "mvp_panini": {
+      "P": 0.5,
+      "D": 0.5,
+      "C": 0.5,
+      "A": 0.5
+    },
+    "rigore_sbagliato": {
+      "P": -3.0,
+      "D": -3.0,
+      "C": -3.0,
+      "A": -3.0
+    }
+  },
   "modificatore_difesa": {
     "attivo": true,
     "minimo_difensori_schierati": 4,
@@ -31,14 +100,22 @@
     "difensori_considerati": 3,
     "usa_voto_puro": true,
     "fasce": [
-      { "media_min": 7.0, "bonus": 6.0 },
-      { "media_min": 6.5, "bonus": 3.0 },
-      { "media_min": 6.0, "bonus": 1.0 }
+      {
+        "media_min": 7.0,
+        "bonus": 6.0
+      },
+      {
+        "media_min": 6.5,
+        "bonus": 3.0
+      },
+      {
+        "media_min": 6.0,
+        "bonus": 1.0
+      }
     ]
   },
   "modificatore_centrocampo": false,
   "capitano": false,
-
   "sostituzioni": {
     "max": 5,
     "panchina_lunga": true,
@@ -48,11 +125,19 @@
     "voto_senza_voto_non_sostituibile": 0.0,
     "voto_ufficio_partita_rinviata": 6.0
   },
-
   "scontri_diretti": {
-    "soglie_gol": [66.0, 70.0, 74.0, 78.0, 82.0, 86.0, 90.0, 94.0],
+    "soglie_gol": [
+      66.0,
+      70.0,
+      74.0,
+      78.0,
+      82.0,
+      86.0,
+      90.0,
+      94.0
+    ],
     "bonus_casa": 0.0
   },
-
-  "scadenza_formazione": "1 minuto prima della prima partita della giornata"
+  "scadenza_formazione": "1 minuto prima della prima partita della giornata",
+  "crediti_asta": 500
 }

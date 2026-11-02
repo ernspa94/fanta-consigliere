@@ -40,6 +40,14 @@ Dal 2 novembre 2026 l'app gestisce più squadre (gruppo di amici, leghe diverse)
 Web app su https://ernspa94.github.io/fanta-consigliere/ — su iPhone: Safari → Condividi → Aggiungi alla schermata Home.
 Pubblicata da `.github/workflows/pages.yml` quando cambia `app/`. Squadre e consigli arrivano da Supabase; listone (`output/listone.json`) e modelli di regolamento da raw.githubusercontent.com. Tiene una copia dell'ultimo consiglio per l'uso offline.
 
+## Asta (scheda "Asta")
+
+- Il motore pubblica `output/valori.json` (`fanta/mercato.py`): per tutto il listone presenza attesa, media voto, frequenza di gol/assist/cartellini/rigori, gol subiti della squadra, FVM, nome completo da Sky (per cercare "Lautaro" invece di "Martinez L.").
+- L'app (`app/asta.js`) applica il regolamento della squadra: fantavoto medio, punti attesi della formazione migliore (con le sostituzioni dalla panchina), "per te" = quanto salgono se lo prendi (o se sostituisce il peggiore del ruolo), offerta massima = crediti divisi in proporzione al valore portato da un piano di acquisti, tenendo 1 credito per ogni posto.
+- Asta dal vivo: crediti, acquisti previsti e "presi da altri" stanno solo sul telefono; "preso da me" aggiorna la rosa sul server (e, se il ruolo è pieno, svincola il meno utile dopo conferma).
+- Verifica sul 2025-26 (`python -m fanta.mercato`): con i dati fino alla g19, il valore del modello ordina i giocatori per i punti delle g20–38 un po' meglio di fantamedia × presenze (difensori 0,63 vs 0,62, centrocampisti 0,61 vs 0,57; attaccanti 0,63 vs 0,65). La presenza pesa le ultime 8 giornate (40% stagione, 30% a voto, 30% titolare): la stagione precedente peggiorava la stima. Per l'asta estiva, con la sola stagione prima, entrambi i metodi indovinano poco (0,3–0,4).
+- FVM di Fantacalcio.it è su 1000 crediti: l'app lo riporta al budget della lega (`crediti_asta` nel regolamento, 500).
+
 ## Notifiche
 
 - `engine/fanta/notifiche.py` confronta il consiglio precedente con il nuovo e manda: consiglio pronto (nuova giornata), formazione cambiata (chi entra/esce e perché), promemoria 3 ore e 30 minuti prima della consegna (una volta sola, registrati in `output/notifiche_inviate.json`).

@@ -59,7 +59,8 @@
     <nav class="schede" role="tablist">
       <button data-scheda="consiglio" class="attiva">Consiglio</button>
       <button data-scheda="rosa">Rosa</button>
-      <button data-scheda="regole">Regolamento</button>
+      <button data-scheda="asta">Asta</button>
+      <button data-scheda="regole">Regole</button>
       <button data-scheda="condividi">Condividi</button>
     </nav>
 
@@ -156,6 +157,41 @@
       </section>
     </div>
 
+    <!-- Asta -->
+    <div id="scheda-asta" class="scheda" hidden>
+      <section class="card campi">
+        <div class="riga-due">
+          <label>Crediti disponibili<input type="number" id="asta-crediti" inputmode="numeric" min="0"></label>
+          <label>Acquisti previsti<input type="number" id="asta-acquisti" inputmode="numeric" min="1" max="25"></label>
+        </div>
+        <p id="asta-riepilogo" class="muted small"></p>
+      </section>
+
+      <section class="card">
+        <input id="asta-cerca" type="search" placeholder="Giocatore chiamato all'asta…" autocomplete="off" autocapitalize="off">
+        <ul id="asta-risultati" class="lista risultati"></ul>
+      </section>
+
+      <section class="card">
+        <h2>I più utili per te</h2>
+        <div id="asta-filtri" class="filtri"></div>
+        <ul id="asta-obiettivi" class="lista"></ul>
+      </section>
+
+      <section class="card" id="asta-presi-box" hidden>
+        <h2>Presi da altri <span id="asta-presi-n" class="muted small"></span></h2>
+        <ul id="asta-presi" class="lista"></ul>
+      </section>
+
+      <section class="card">
+        <h2>Meno utili in rosa</h2>
+        <p class="muted small">Se devi liberare un posto: sono quelli che fanno perdere meno punti.</p>
+        <ul id="asta-svincoli" class="lista"></ul>
+      </section>
+
+      <p id="asta-nota" class="muted small"></p>
+    </div>
+
     <!-- Regolamento -->
     <div id="scheda-regole" class="scheda" hidden>
       <section class="card">
@@ -237,7 +273,27 @@
     </form>
   </dialog>
 
+  <dialog id="asta-dialog">
+    <form method="dialog">
+      <h3 id="a-nome"></h3>
+      <p id="a-sotto" class="muted"></p>
+      <dl class="dati">
+        <div><dt>Per te, a giornata</dt><dd id="a-giornata"></dd></div>
+        <div><dt>Offerta massima</dt><dd id="a-max"></dd></div>
+        <div><dt>Prezzo di mercato</dt><dd id="a-mercato"></dd></div>
+      </dl>
+      <p id="a-nota" class="nota" hidden></p>
+      <div class="riga-azioni">
+        <input type="number" id="a-prezzo" inputmode="numeric" min="1" placeholder="Prezzo pagato">
+        <button type="button" id="a-mio" class="btn">Preso da me</button>
+      </div>
+      <button type="button" id="a-altri" class="btn secondario">Preso da altri</button>
+      <button class="btn secondario">Chiudi</button>
+    </form>
+  </dialog>
+
   <script src="config.js"></script>
+  <script src="asta.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -51,7 +51,7 @@ def forza_squadre(stat, stat_prec, partite_giocate):
             if g["ruolo"] == "P":
                 sub[g["squadra"]] += g["gs"]
 
-    squadre = set(fatti) | set(subiti)
+    squadre = (set(fatti) | set(subiti)) or (set(fatti_prec) | set(subiti_prec))  # pre-campionato: squadre dell'anno prima
     media_prec = sum(fatti_prec.values()) / max(len(fatti_prec), 1) / 38
     forza = {}
     for sq in squadre:

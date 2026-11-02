@@ -88,9 +88,14 @@ def carica_stagione(stagione, fino_a=38):
     presenti = {r["giornata"] for r in righe}
     mancanti = [g for g in range(1, fino_a + 1) if g not in presenti]
     if mancanti:
-        righe += scarica_stagione(stagione, mancanti)
+        nuove = scarica_stagione(stagione, mancanti)
+        # Si salvano solo le giornate finite (tutte e 20 le squadre hanno i voti): una giornata
+        # ancora in corso si riscarica la volta dopo.
+        finite = {g for g in mancanti if len({r["squadra"] for r in nuove if r["giornata"] == g}) >= 20}
+        da_salvare = righe + [r for r in nuove if r["giornata"] in finite]
         CARTELLA.mkdir(parents=True, exist_ok=True)
-        file.write_text(json.dumps(righe, ensure_ascii=False), encoding="utf-8")
+        file.write_text(json.dumps(da_salvare, ensure_ascii=False), encoding="utf-8")
+        righe += nuove
     return [r for r in righe if r["giornata"] <= fino_a]
 
 

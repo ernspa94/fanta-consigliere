@@ -120,9 +120,11 @@ def leggi_listone(html):
     for tr in soup.select("tr.player-row"):
         pid, squadra = _id_squadra(tr.select_one("a.player-link"))
         q = tr.select_one('td[data-col-key="c_qa"]')
+        fvm = tr.select_one('td[data-col-key="c_fvm"]')
         out.append({"id": pid, "nome": tr.select_one("a.player-link span").get_text(strip=True),
                     "ruolo": tr["data-filter-role-classic"].upper(), "squadra": squadra,
-                    "q": int(_numero(q.get_text())) if q else 0})
+                    "q": int(_numero(q.get_text())) if q else 0,
+                    "fvm": int(_numero(fvm.get_text())) if fvm else None})
     return sorted(out, key=lambda g: g["nome"].lower())
 
 
@@ -163,11 +165,12 @@ def carica_sky(giornata, listone):
     if dati["giornata"] != giornata:
         print(f"Sky è sulla giornata {dati['giornata']}, Fantacalcio.it sulla {giornata}: Sky ignorata")
         return None
-    giocatori, sconosciuti = sky.abbina(dati, listone)
+    giocatori, sconosciuti, alias = sky.abbina(dati, listone)
     if sconosciuti:
         print(f"Sky: {len(sconosciuti)} nomi non riconosciuti (di solito Primavera): {', '.join(sconosciuti[:10])}")
     # squadre coperte da Sky -> True se la formazione ufficiale è già uscita
-    return {"giocatori": giocatori, "squadre": {sq: d["ufficiale"] for sq, d in dati["squadre"].items()}}
+    return {"giocatori": giocatori, "squadre": {sq: d["ufficiale"] for sq, d in dati["squadre"].items()},
+            "alias": alias}
 
 
 def carica_tutto(stagione="2026-27", stagione_prec="2025-26"):

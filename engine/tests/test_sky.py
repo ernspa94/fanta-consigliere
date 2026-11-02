@@ -22,6 +22,9 @@ def test_abbinamento_nomi_sky():
     assert trova("Milinkovic-Savic") == 2                       # liste senza link (solo cognome)
     assert trova("Ndicka") == 8                                 # nome attaccato
     assert trova("Martinez") is None                            # omonimi senza iniziale: non indovina
+    inter = [{"id": 1, "nome": "Martinez Jo."}, {"id": 2, "nome": "Martinez L."}]
+    assert _trova("Martínez J.", ["josep", "martinez"], inter)["id"] == 1   # "Jo." è l'iniziale di Josep
+    assert _trova("Lautaro Martinez", ["lautaro", "martinez"], inter)["id"] == 2
     assert trova("Rossi") is None
 
 

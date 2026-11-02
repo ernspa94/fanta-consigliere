@@ -52,6 +52,14 @@ jobs:
           pip install -q pywebpush
           python -m fanta.notifiche --prova ${CODICE:+"$CODICE"}
 
+      - name: Voti delle giornate già scaricati (per le presenze recenti dell'asta)
+        if: steps.piano.outputs.esegui == 'true'
+        uses: actions/cache@v4
+        with:
+          path: data/voti
+          key: voti-${{ github.run_id }}
+          restore-keys: voti-
+
       - uses: actions/setup-python@v5
         if: steps.piano.outputs.esegui == 'true'
         with:

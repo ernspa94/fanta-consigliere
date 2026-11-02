@@ -332,7 +332,7 @@ dialog p { margin: 4px 0 12px; }
 .barra-salva .btn { width: auto; padding: 10px 22px; background: var(--accent); color: #fff; }
 #stato-box h2 { font-size: 1.1rem; }
 #stato-box p { margin: 0; }
-#cerca {
+#cerca, #asta-cerca {
   width: 100%;
   font: inherit;
   color: var(--text);
@@ -342,3 +342,15 @@ dialog p { margin: 4px 0 12px; }
   padding: 11px 12px;
 }
 .riga-azioni select, .riga-azioni input { flex: 1; min-width: 0; }
+
+/* --- Asta --- */
+.riga-due { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.filtri { display: flex; gap: 6px; margin-bottom: 8px; }
+.filtri button {
+  font: inherit; font-size: 0.85rem; padding: 6px 12px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--card); color: var(--text);
+}
+.filtri button.attiva { background: var(--accent); border-color: var(--accent); color: var(--card); }
+.guadagno { font-weight: 700; color: var(--accent); white-space: nowrap; font-size: 0.9rem; text-align: right; }
+.guadagno small { display: block; font-weight: 400; color: var(--muted); font-size: 0.72rem; }
+.schede button { font-size: 0.78rem; padding: 8px 2px; }
