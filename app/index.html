@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Fanta Consigliere</title>
+  <meta name="description" content="La formazione consigliata per Fanta Lignano, aggiornata dalle probabili formazioni.">
+  <meta name="theme-color" content="#0f5132">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Consigliere">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1 id="squadra">Fanta Consigliere</h1>
+      <p id="sottotitolo" class="muted">Caricamento…</p>
+    </div>
+    <button id="ricarica" class="icon-btn" aria-label="Aggiorna">↻</button>
+  </header>
+
+  <main id="contenuto" hidden>
+    <section class="card riepilogo">
+      <div class="modulo-box">
+        <span class="etichetta">Modulo</span>
+        <span id="modulo" class="modulo"></span>
+      </div>
+      <div class="punti-box">
+        <span class="etichetta">Punti attesi</span>
+        <span id="punti" class="punti"></span>
+        <span id="intervallo" class="muted small"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Quanti gol facciamo</h2>
+      <div id="gol" class="gol-barre"></div>
+      <p id="extra" class="muted small"></p>
+    </section>
+
+    <section class="campo" aria-label="Titolari">
+      <div class="linea" data-ruolo="A"></div>
+      <div class="linea" data-ruolo="C"></div>
+      <div class="linea" data-ruolo="D"></div>
+      <div class="linea" data-ruolo="P"></div>
+    </section>
+
+    <section class="card">
+      <h2>Panchina <span class="muted small">in ordine di ingresso</span></h2>
+      <ol id="panchina" class="lista"></ol>
+    </section>
+
+    <section class="card" id="box-avvisi" hidden>
+      <h2>Non disponibili</h2>
+      <ul id="avvisi" class="lista"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Altri moduli</h2>
+      <ul id="alternative" class="alternative"></ul>
+    </section>
+
+    <p class="muted small centro" id="aggiornato"></p>
+  </main>
+
+  <p id="errore" class="card errore" hidden></p>
+
+  <dialog id="dettaglio">
+    <form method="dialog">
+      <h3 id="d-nome"></h3>
+      <p id="d-partita" class="muted"></p>
+      <dl class="dati">
+        <div><dt>Prende voto</dt><dd id="d-voto"></dd></div>
+        <div><dt>Fantavoto se gioca</dt><dd id="d-fv"></dd></div>
+        <div><dt>Punti attesi</dt><dd id="d-attesi"></dd></div>
+      </dl>
+      <p id="d-nota" class="nota" hidden></p>
+      <button class="btn">Chiudi</button>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>

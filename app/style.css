@@ -1,0 +1,215 @@
+:root {
+  --bg: #f2f4f3;
+  --card: #ffffff;
+  --text: #17201b;
+  --muted: #5f6b65;
+  --border: #dde3e0;
+  --accent: #0f5132;
+  --pitch: #1f7a4a;
+  --pitch-line: rgba(255, 255, 255, 0.35);
+  --chip: rgba(255, 255, 255, 0.95);
+  --chip-text: #17201b;
+  --ok: #1a7f4b;
+  --warn: #b7791f;
+  --bad: #c0392b;
+  --bar: #2f855a;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1411;
+    --card: #18211c;
+    --text: #e8eeea;
+    --muted: #93a29a;
+    --border: #2a362f;
+    --accent: #6fd39b;
+    --pitch: #175c38;
+    --pitch-line: rgba(255, 255, 255, 0.2);
+    --chip: #1f2a24;
+    --chip-text: #e8eeea;
+    --ok: #4cc283;
+    --warn: #e0a84a;
+    --bad: #ec6b5e;
+    --bar: #4cc283;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  padding: env(safe-area-inset-top) 16px calc(24px + env(safe-area-inset-bottom));
+  max-width: 560px;
+  margin-inline: auto;
+}
+
+h1 { font-size: 1.35rem; margin: 0; }
+h2 { font-size: 1rem; margin: 0 0 10px; }
+.muted { color: var(--muted); }
+.small { font-size: 0.82rem; font-weight: normal; }
+.centro { text-align: center; }
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0 12px;
+}
+.top p { margin: 2px 0 0; font-size: 0.9rem; }
+
+.icon-btn {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 999px;
+  width: 40px;
+  height: 40px;
+  font-size: 1.2rem;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+.riepilogo { display: flex; gap: 12px; }
+.riepilogo > div { flex: 1; display: flex; flex-direction: column; }
+.etichetta { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.modulo, .punti { font-size: 2rem; font-weight: 700; color: var(--accent); }
+
+.gol-barre { display: flex; align-items: flex-end; gap: 8px; height: 110px; }
+.gol-barre .colonna { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+.gol-barre .barra { width: 100%; background: var(--bar); border-radius: 6px 6px 2px 2px; min-height: 2px; }
+.gol-barre .pct { font-size: 0.75rem; color: var(--muted); margin-bottom: 4px; }
+.gol-barre .n { font-size: 0.85rem; font-weight: 600; margin-top: 4px; }
+#extra { margin: 10px 0 0; }
+
+.campo {
+  background:
+    linear-gradient(var(--pitch-line), var(--pitch-line)) center / 100% 2px no-repeat,
+    radial-gradient(circle at center, transparent 44px, var(--pitch-line) 45px, var(--pitch-line) 46px, transparent 47px),
+    var(--pitch);
+  border-radius: 16px;
+  padding: 14px 6px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.linea { display: flex; justify-content: space-evenly; gap: 4px; }
+
+.giocatore {
+  background: var(--chip);
+  color: var(--chip-text);
+  border: 0;
+  border-radius: 12px;
+  padding: 6px 4px 5px;
+  flex: 0 1 24%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font: inherit;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.giocatore .nome {
+  font-size: 0.74rem;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.giocatore .avv { font-size: 0.68rem; color: var(--muted); }
+
+.badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 6px;
+  margin-top: 2px;
+  color: #fff;
+}
+.badge.ok { background: var(--ok); }
+.badge.warn { background: var(--warn); }
+.badge.bad { background: var(--bad); }
+
+.lista { list-style: none; margin: 0; padding: 0; counter-reset: n; }
+.lista li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.lista li:first-child { border-top: 0; }
+ol.lista li::before {
+  counter-increment: n;
+  content: counter(n);
+  width: 22px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: right;
+}
+.lista .info { flex: 1; min-width: 0; }
+.lista .nome-riga { font-weight: 600; }
+.lista .sotto { font-size: 0.8rem; color: var(--muted); }
+.ruolo {
+  font-size: 0.7rem;
+  font-weight: 700;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex: none;
+}
+.ruolo.P { background: #d69e2e; }
+.ruolo.D { background: #38a169; }
+.ruolo.C { background: #3182ce; }
+.ruolo.A { background: #e53e3e; }
+.lista button { all: unset; display: contents; cursor: pointer; }
+
+.alternative { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.alternative li { border: 1px solid var(--border); border-radius: 10px; padding: 6px 8px; display: flex; justify-content: space-between; font-size: 0.9rem; }
+.alternative li.scelto { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+
+.errore { color: var(--bad); }
+
+dialog {
+  border: 0;
+  border-radius: 18px;
+  padding: 18px;
+  width: min(92vw, 420px);
+  background: var(--card);
+  color: var(--text);
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+dialog h3 { margin: 0; }
+dialog p { margin: 4px 0 12px; }
+.dati { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 0 12px; }
+.dati div { background: var(--bg); border-radius: 10px; padding: 8px; }
+.dati dt { font-size: 0.72rem; color: var(--muted); }
+.dati dd { margin: 2px 0 0; font-weight: 700; font-size: 1.1rem; }
+.nota { background: var(--bg); border-left: 3px solid var(--warn); padding: 8px 10px; border-radius: 6px; font-size: 0.9rem; }
+.btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 0;
+  background: var(--accent);
+  color: var(--card);
+  font: inherit;
+  font-weight: 600;
+}
