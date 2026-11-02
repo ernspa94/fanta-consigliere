@@ -61,7 +61,7 @@ const Asta = (() => {
     const presi = new Set(presiDaAltri);
     const disponibili = tutti.filter((g) => !inRosa.has(g.id) && !presi.has(g.id));
     const mods = moduli(regole);
-    return { tutti, perId, miei, liberi, disponibili, mods, rimanenti: valori.giornate_rimanenti,
+    return { tutti, perId, miei, liberi, limiti, disponibili, mods, rimanenti: valori.giornate_rimanenti,
              crediti_asta: regole?.crediti_asta || 500, base: valoreSquadra(miei, mods) };
   }
 
@@ -117,11 +117,76 @@ const Asta = (() => {
     return Math.max(1, Math.min(massimo, Math.round(1 + perPunto * punti)));
   }
 
+  // --- Asta da zero: prezzo "giusto" per tutta la lega --------------------------------------------
+  // Un giocatore vale quanto è migliore dell'ultimo che verrà comprato nel suo ruolo (con 8 squadre e
+  // 6 attaccanti a testa, il 48° attaccante si prende a 1 credito). I crediti che restano a tutta la
+  // lega si dividono in proporzione a questo "di più": se gli altri spendono tanto, i prezzi scendono.
+  // Il "rimpiazzo" si misura sui posti da titolare (più un quarto di panchina), non su quelli in rosa:
+  // in campo va un solo portiere, quindi il 9° portiere della lega vale già poco.
+  function titolariMedi(s) {
+    const media = (r) => s.mods.reduce((a, m) => a + m[r], 0) / s.mods.length;
+    return Object.fromEntries(RUOLI.map((r) => [r, Math.min(s.limiti[r], media(r) * 1.25)]));
+  }
+
+  // Valuta tutti i disponibili rispetto ai crediti che restano a tutta la lega.
+  // valoreDi(g) dà il valore "sopra l'ultimo comprato" (≥ 0); i crediti oltre il minimo (1 a posto)
+  // si dividono in proporzione. Lo usano sia il valore statistico sia la stima del prezzo reale.
+  function dividiCrediti(s, squadre, budget, spesiLega, valoreDi) {
+    const assegnati = new Set(s.miei.map((g) => g.id));
+    const presiLega = s.tutti.filter((g) => !s.disponibili.includes(g) && !assegnati.has(g.id));
+    let somma = 0, posti = 0;
+    for (const r of RUOLI) {
+      const giaPresi = s.miei.filter((g) => g.ruolo === r).length + presiLega.filter((g) => g.ruolo === r).length;
+      const postiRuolo = Math.max(0, squadre * s.limiti[r] - giaPresi);
+      posti += postiRuolo;
+      somma += s.disponibili.filter((g) => g.ruolo === r).map(valoreDi).sort((a, b) => b - a)
+        .slice(0, postiRuolo).reduce((a, b) => a + b, 0);
+    }
+    const soldi = Math.max(0, squadre * budget - spesiLega);
+    const perUnita = somma > 0 ? Math.max(0, soldi - posti) / somma : 0;
+    return { prezzo: (g) => Math.max(1, Math.round(1 + valoreDi(g) * perUnita)), soldi, posti };
+  }
+
+  function mercatoLega(s, squadre, budget, spesiLega) {
+    const ev = (g) => g.fv * g.p;
+    const tit = titolariMedi(s), rimpiazzo = {};
+    for (const r of RUOLI) {
+      const valori = s.tutti.filter((g) => g.ruolo === r).map(ev).sort((a, b) => b - a);
+      rimpiazzo[r] = valori[Math.min(valori.length - 1, Math.round(squadre * tit[r]))] ?? 0;
+    }
+    // Valore secondo le statistiche: punti a giornata in più dell'ultimo titolare comprato.
+    const statistico = dividiCrediti(s, squadre, budget, spesiLega, (g) => Math.max(0, ev(g) - rimpiazzo[g.ruolo]));
+    // Prezzo probabile: FVM di Fantacalcio.it (quanto si paga di solito), sugli stessi crediti rimasti.
+    const reale = dividiCrediti(s, squadre, budget, spesiLega, (g) => Math.max(0, (g.fvm || 0) - 1));
+    return { valore: statistico.prezzo, probabile: reale.prezzo, soldi: statistico.soldi, posti: statistico.posti };
+  }
+
+  // Offerta massima per la mia rosa in costruzione: media tra valore statistico e prezzo probabile
+  // (le statistiche non sanno se un inizio di stagione da record durerà, il mercato in parte sì),
+  // ridotta se per me sarebbe una riserva (conta la parte del suo valore che entra davvero nella mia
+  // formazione) e mai tanto da non lasciare 1 credito per ogni posto ancora vuoto.
+  function offertaDaZero(s, mercato, crediti, g) {
+    if (s.liberi[g.ruolo] <= 0) return 0;
+    const ev = g.fv * g.p;
+    const quota = ev > 0 ? Math.min(1, Math.max(0, guadagno(s, g).punti / ev)) : 0;
+    const tetto = Math.max(1, crediti - (postiLiberi(s) - 1));
+    const giusto = (mercato.valore(g) + mercato.probabile(g)) / 2;
+    return Math.max(1, Math.min(tetto, Math.round(giusto * quota)));
+  }
+
+  // Giudizio sul prezzo probabile rispetto al valore statistico.
+  function giudizio(mercato, g) {
+    const v = mercato.valore(g), p = mercato.probabile(g);
+    if (p <= 0.8 * v) return "affare";
+    if (p >= 1.25 * v + 2) return "caro";
+    return "prezzo giusto";
+  }
+
   // Svincoli: chi fa perdere meno punti se tolto dalla rosa.
   function menoUtili(s, n = 5) {
     return s.miei.map((g) => ({ g, perdita: s.base - valoreSquadra(s.miei.filter((x) => x !== g), s.mods) }))
       .sort((a, b) => a.perdita - b.perdita).slice(0, n);
   }
 
-  return { prepara, guadagno, piano, offertaMassima, menoUtili, fantavoto, postiLiberi };
+  return { prepara, guadagno, piano, offertaMassima, menoUtili, fantavoto, postiLiberi, mercatoLega, offertaDaZero, giudizio };
 })();

@@ -105,8 +105,12 @@ def pubblica(dati, giornata, stato_giocatori, stagione="2026-27"):
     """output/valori.json: componenti di tutto il listone, per la scheda Asta dell'app (dati pubblici)."""
     giocate = giornata - 1
     righe = SV.carica_stagione(stagione, giocate) if giocate > 0 else []
+    # Per le presenze recenti contano solo le giornate finite: in una giornata in corso chi non ha
+    # ancora giocato sembrerebbe assente.
+    finite = [g for g in range(1, giocate + 1) if len({r["squadra"] for r in righe if r["giornata"] == g}) >= 20]
+    ultima_finita = max(finite, default=0)
     comp = componenti(dati["listone"], dati["stat"], dati["stat_prec"], giocate, dati.get("rigoristi"),
-                      recenti=presenze_recenti(righe, giocate) if giocate > 0 else None)
+                      recenti=presenze_recenti(righe, ultima_finita) if ultima_finita > 0 else None)
     prezzi = {g["id"]: g for g in dati["listone"]}
     for c in comp:
         c["q"] = prezzi[c["id"]]["q"]

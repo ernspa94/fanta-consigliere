@@ -1,6 +1,6 @@
 // Tiene in cache i file dell'app, così si apre anche senza rete.
 // Il consiglio non passa da qui: app.js lo scarica sempre fresco e ne tiene una copia in localStorage.
-const VERSIONE = "v8";
+const VERSIONE = "v9";
 const FILE = ["./", "index.html", "style.css", "config.js", "asta.js", "app.js", "manifest.webmanifest", "icons/icon-180.png", "icons/icon-192.png"];
 
 self.addEventListener("install", (e) => {

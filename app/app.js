@@ -103,7 +103,7 @@ async function instrada() {
   const m = location.hash.match(/^#\/s\/([0-9a-z]+)(?:\/(\w+))?/i);
   try {
     if (m) await apriSquadra(m[1].toLowerCase(), m[2] || "consiglio");
-    else mostraHome();
+    else mostraHome(location.hash === "#/asta" ? "asta" : "squadre");
   } catch (e) {
     mostraHome();
     mostraErrore(e.message);
@@ -120,9 +120,17 @@ $("indietro").addEventListener("click", () => {
 
 // --- Home -------------------------------------------------------------------------------------------
 
-function mostraHome() {
+for (const b of document.querySelectorAll("#schede-home button")) {
+  b.addEventListener("click", () => vai(b.dataset.home === "asta" ? "#/asta" : "#/"));
+}
+
+function mostraHome(scheda = "squadre") {
   squadra = bozza = null;
   $("home").hidden = false;
+  for (const b of document.querySelectorAll("#schede-home button")) b.classList.toggle("attiva", b.dataset.home === scheda);
+  $("home-squadre").hidden = scheda !== "squadre";
+  $("home-asta").hidden = scheda !== "asta";
+  if (scheda === "asta") disegnaAsta();
   $("squadra").hidden = true;
   $("indietro").hidden = $("ricarica").hidden = true;
   $("titolo").textContent = "Fanta Consigliere";
@@ -177,7 +185,6 @@ async function apriSquadra(codice, scheda) {
     bozza = clona(squadra);
     ricordaSquadra(squadra);
     attuale = attivo = null;
-    asta = contestoAsta = null;
     disegnaRosa();
     disegnaRegole();
     disegnaCondividi();
@@ -195,7 +202,6 @@ function mostraScheda(nome) {
   for (const b of document.querySelectorAll(".schede button")) b.classList.toggle("attiva", b.dataset.scheda === nome);
   for (const s of document.querySelectorAll(".scheda")) s.hidden = s.id !== `scheda-${nome}`;
   if (nome === "rosa") caricaListone().catch(() => mostraErrore("Non riesco a scaricare il listone."));
-  if (nome === "asta") disegnaAsta();
 }
 
 for (const b of document.querySelectorAll(".schede button")) {
@@ -277,19 +283,33 @@ async function cerca() {
 }
 $("cerca").addEventListener("input", cerca);
 
-// --- Scheda Asta --------------------------------------------------------------------------------------
-// Stato dell'asta (crediti, acquisti previsti, presi da altri) solo su questo telefono: all'asta lo usa
-// una persona, e i "presi da altri" non servono dopo. I "presi da me" vanno invece nella rosa (server).
+// --- Asta (scheda della home) ---------------------------------------------------------------------
+// Due tipi: "da zero" (si costruisce una rosa nuova, con il regolamento scelto; alla fine si può salvare
+// come squadra) oppure "riparazione" di una delle mie squadre (rosa e regolamento dal server; ciò che
+// compro va subito nella sua rosa). Lo stato dell'asta sta solo su questo telefono.
 
 let valori = null;
-let asta = null;         // {crediti, acquisti, presi: [id]}
-let contestoAsta = null; // calcoli correnti: {s, piano}
+let statoAsta = null;   // vedi leggiStatoAsta()
+let ctxAsta = null;     // calcoli correnti
 let filtroAsta = "";
 const caricaValori = async () => (valori ??= await pubblico("output/valori.json"));
-const salvaAsta = () => scriviLocale(`asta:${squadra.codice}`, asta);
-const prezzoMercato = (g) => (g.fvm == null ? "–" : Math.round(g.fvm * (bozza.regole?.crediti_asta || 500) / 1000));
+const regoleModello = {};
+const modelloAsta = async (id) => (regoleModello[id] ??= await caricaModello(id));
 const segno = (x, d = 2) => `${x >= 0 ? "+" : "−"}${num(Math.abs(x), d)}`;
+const somma = (lista) => lista.reduce((a, x) => a + (x.prezzo || 0), 0);
 
+function leggiStatoAsta() {
+  const s = leggiLocale("asta", null) || {};
+  return {
+    tipo: s.tipo || "zero",
+    zero: { modello: "standard", squadre: 8, budget: 500, miei: [], presi: [], ...(s.zero || {}) },
+    rip: s.rip || {},
+  };
+}
+const salvaStatoAsta = () => scriviLocale("asta", statoAsta);
+const ripDi = (codice) => (statoAsta.rip[codice] ??= { crediti: 0, acquisti: null, presi: [] });
+
+$("asta-regole").replaceChildren(...MODELLI.map((m) => el("option", { value: m.id }, m.nome)));
 $("asta-filtri").replaceChildren(...[["", "Tutti"], ...[...ORDINE_RUOLI].map((r) => [r, r])].map(([r, testo]) =>
   el("button", { class: r === "" ? "attiva" : "", onclick: (e) => {
     filtroAsta = r;
@@ -297,124 +317,238 @@ $("asta-filtri").replaceChildren(...[["", "Tutti"], ...[...ORDINE_RUOLI].map((r)
     disegnaAsta();
   } }, testo)));
 
-function rigaAsta(g, guad) {
+// Numeri di un giocatore nel contesto corrente (dipendono dal tipo di asta).
+function numeriAsta(g) {
+  const { s, modo } = ctxAsta;
+  const guad = Asta.guadagno(s, g);
+  if (modo === "zero") {
+    const m = ctxAsta.mercato;
+    return { guad, max: Asta.offertaDaZero(s, m, ctxAsta.crediti, g), probabile: m.probabile(g),
+             valore: m.valore(g), giudizio: Asta.giudizio(m, g) };
+  }
+  return { guad, max: ctxAsta.crediti ? Asta.offertaMassima(s, ctxAsta.piano, ctxAsta.crediti, guad.punti) : null,
+           mercato: g.fvm == null ? null : Math.round(g.fvm * (ctxAsta.regole?.crediti_asta || 500) / 1000) };
+}
+
+function rigaAsta(g) {
+  const n = numeriAsta(g);
   const avviso = g.stato ? ` · ⚠ ${g.stato}` : "";
-  const massimo = asta.crediti ? `max ${Asta.offertaMassima(contestoAsta.s, contestoAsta.piano, asta.crediti, guad.punti)} · ` : "";
+  const dettagli = ctxAsta.modo === "zero"
+    ? (ctxAsta.s.liberi[g.ruolo] > 0 ? `max ${n.max} · probabile ${n.probabile} · ${n.giudizio}` : `ruolo completo · probabile ${n.probabile}`)
+    : `${n.max ? `max ${n.max} · ` : ""}mercato ${n.mercato ?? "–"}`;
   return el("li", {},
     el("button", { onclick: () => apriGiocatoreAsta(g) },
       badgeRuolo(g.ruolo),
-      infoRiga(g.nome, `${nomeSquadra(g.squadra)} · ${massimo}mercato ${prezzoMercato(g)}${avviso}`),
-      el("span", { class: "guadagno" }, segno(guad.punti), el("small", {}, "a giornata"))));
+      infoRiga(g.nome, `${nomeSquadra(g.squadra)} · ${dettagli}${avviso}`),
+      el("span", { class: "guadagno" }, segno(n.guad.punti), el("small", {}, "a giornata"))));
 }
 
 async function disegnaAsta() {
-  if (!squadra) return;
-  asta ??= leggiLocale(`asta:${squadra.codice}`, { crediti: 0, acquisti: null, presi: [] });
+  statoAsta ??= leggiStatoAsta();
+  const mie = mieSquadre();
+  if (statoAsta.tipo !== "zero" && !mie.some((x) => x.codice === statoAsta.tipo)) statoAsta.tipo = "zero";
+  $("asta-tipo").replaceChildren(el("option", { value: "zero" }, "Asta da zero (rosa nuova)"),
+    ...mie.map((x) => el("option", { value: x.codice }, `Riparazione: ${x.nome}`)));
+  $("asta-tipo").value = statoAsta.tipo;
+
   let v;
   try { v = await caricaValori(); } catch (e) { return mostraErrore(`Non riesco a scaricare i valori: ${e.message}`); }
-  const s = Asta.prepara(v, bozza.rosa, bozza.regole, asta.presi);
-  const acquisti = asta.acquisti || Math.max(Asta.postiLiberi(s), 3);
-  contestoAsta = { s, piano: Asta.piano(s, acquisti) };
-  $("asta-crediti").value = asta.crediti;
-  $("asta-acquisti").value = acquisti;
-  const liberi = [...ORDINE_RUOLI].map((r) => `${r} ${s.liberi[r]}`).join(" · ");
-  $("asta-riepilogo").textContent = `La tua squadra fa circa ${num(s.base)} punti a giornata. Posti liberi: ${liberi}. ` +
-    `Restano ${s.rimanenti} giornate.` + (asta.crediti ? "" : " Inserisci i crediti per vedere le offerte massime.");
+  const zero = statoAsta.tipo === "zero";
+  $("asta-zero-impostazioni").hidden = !zero;
+  $("asta-rip-impostazioni").hidden = zero;
+  $("asta-mia-box").hidden = !zero;
+  $("asta-svincoli-box").hidden = zero;
 
+  if (zero) {
+    const z = statoAsta.zero;
+    const regole = await modelloAsta(z.modello);
+    const s = Asta.prepara(v, z.miei.map((x) => ({ fc_id: x.id })), regole, z.presi.map((x) => x.id));
+    const mercato = Asta.mercatoLega(s, z.squadre, z.budget, somma(z.miei) + somma(z.presi));
+    ctxAsta = { modo: "zero", s, mercato, regole, crediti: z.budget - somma(z.miei) };
+    $("asta-regole").value = z.modello;
+    $("asta-squadre").value = z.squadre;
+    $("asta-budget").value = z.budget;
+    const liberi = [...ORDINE_RUOLI].map((r) => `${r} ${s.liberi[r]}`).join(" · ");
+    $("asta-riepilogo").textContent = `Ti restano ${ctxAsta.crediti} crediti per ${Asta.postiLiberi(s)} posti (${liberi}). ` +
+      `In tutta la lega restano ${mercato.soldi} crediti per ${mercato.posti} posti.`;
+    $("asta-obiettivi-titolo").textContent = z.miei.length ? "I più utili per te" : "I migliori da prendere";
+    const miei = z.miei.map((x) => ({ ...x, g: s.perId.get(x.id) })).filter((x) => x.g);
+    $("asta-mia-n").textContent = `(${miei.length} · spesi ${somma(z.miei)})`;
+    $("asta-mia").replaceChildren(...[...miei].sort((a, b) => ORDINE_RUOLI.indexOf(a.g.ruolo) - ORDINE_RUOLI.indexOf(b.g.ruolo))
+      .map((x) => el("li", {}, badgeRuolo(x.g.ruolo), infoRiga(x.g.nome, `${nomeSquadra(x.g.squadra)} · pagato ${x.prezzo}`),
+        el("button", { class: "togli", "aria-label": `Annulla ${x.g.nome}`, onclick: () => {
+          z.miei = z.miei.filter((y) => y.id !== x.id); salvaStatoAsta(); disegnaAsta();
+        } }, "↺"))));
+    $("asta-salva-squadra").hidden = miei.length === 0;
+  } else {
+    const codice = statoAsta.tipo;
+    if (ctxAsta?.squadraRip?.codice !== codice) {
+      try { ctxAsta = { squadraRip: await rpc("leggi_squadra", { p_codice: codice }) }; } catch (e) { return mostraErrore(e.message); }
+    }
+    const sq = ctxAsta.squadraRip, r = ripDi(codice);
+    const s = Asta.prepara(v, sq.rosa, sq.regole, r.presi);
+    const acquisti = r.acquisti || Math.max(Asta.postiLiberi(s), 3);
+    ctxAsta = { modo: "rip", squadraRip: sq, s, regole: sq.regole, crediti: r.crediti, piano: Asta.piano(s, acquisti) };
+    $("asta-crediti").value = r.crediti;
+    $("asta-acquisti").value = acquisti;
+    const liberi = [...ORDINE_RUOLI].map((x) => `${x} ${s.liberi[x]}`).join(" · ");
+    $("asta-riepilogo").textContent = `${sq.nome} fa circa ${num(s.base)} punti a giornata. Posti liberi: ${liberi}. ` +
+      `Restano ${s.rimanenti} giornate.` + (r.crediti ? "" : " Inserisci i crediti per vedere le offerte massime.");
+    $("asta-obiettivi-titolo").textContent = "I più utili per te";
+    $("asta-svincoli").replaceChildren(...Asta.menoUtili(s).map(({ g, perdita }) => el("li", {},
+      badgeRuolo(g.ruolo), infoRiga(g.nome, `${nomeSquadra(g.squadra)}${g.stato ? ` · ⚠ ${g.stato}` : ""}`),
+      el("span", { class: "guadagno" }, segno(-perdita), el("small", {}, "a giornata")))));
+  }
+
+  const s = ctxAsta.s;
   const candidati = s.disponibili.filter((g) => !filtroAsta || g.ruolo === filtroAsta)
-    .map((g) => ({ g, guad: Asta.guadagno(s, g) })).sort((a, b) => b.guad.punti - a.guad.punti).slice(0, 20);
-  $("asta-obiettivi").replaceChildren(...candidati.map(({ g, guad }) => rigaAsta(g, guad)));
+    .filter((g) => !zero || s.liberi[g.ruolo] > 0)
+    .map((g) => ({ g, punti: Asta.guadagno(s, g).punti })).sort((a, b) => b.punti - a.punti).slice(0, 20);
+  $("asta-obiettivi").replaceChildren(...candidati.map(({ g }) => rigaAsta(g)));
 
-  const presi = asta.presi.map((id) => s.perId.get(id)).filter(Boolean).reverse();
+  const presiIds = zero ? statoAsta.zero.presi.map((x) => x.id) : ripDi(statoAsta.tipo).presi;
+  const presi = presiIds.map((id) => s.perId.get(id)).filter(Boolean).reverse();
   $("asta-presi-box").hidden = presi.length === 0;
   $("asta-presi-n").textContent = `(${presi.length})`;
   $("asta-presi").replaceChildren(...presi.map((g) => el("li", {},
     badgeRuolo(g.ruolo), infoRiga(g.nome, nomeSquadra(g.squadra)),
     el("button", { class: "togli", "aria-label": `Annulla ${g.nome}`, onclick: () => {
-      asta.presi = asta.presi.filter((x) => x !== g.id); salvaAsta(); disegnaAsta();
+      if (zero) statoAsta.zero.presi = statoAsta.zero.presi.filter((x) => x.id !== g.id);
+      else ripDi(statoAsta.tipo).presi = ripDi(statoAsta.tipo).presi.filter((x) => x !== g.id);
+      salvaStatoAsta(); disegnaAsta();
     } }, "↺"))));
 
-  $("asta-svincoli").replaceChildren(...Asta.menoUtili(s).map(({ g, perdita }) => el("li", {},
-    badgeRuolo(g.ruolo), infoRiga(g.nome, `${nomeSquadra(g.squadra)}${g.stato ? ` · ⚠ ${g.stato}` : ""}`),
-    el("span", { class: "guadagno" }, segno(-perdita), el("small", {}, "a giornata")))));
-
-  $("asta-nota").textContent = `Stime sui dati fino alla giornata ${v.giornata - 1}. "Per te" è quanto salgono i punti ` +
-    "a giornata della tua formazione migliore se lo prendi (se il ruolo è pieno, al posto del peggiore). " +
-    "Mercato = valore di mercato di Fantacalcio.it (FVM) riportato al budget della lega. È una guida: all'asta decidi tu.";
+  $("asta-nota").textContent = (zero
+    ? "\"Probabile\" è quanto si paga di solito (valore di mercato di Fantacalcio.it, adattato ai crediti che restano in lega). " +
+      "\"Max\" è la tua offerta massima: media tra quanto rende secondo le statistiche e il prezzo probabile, " +
+      "ridotta se per te sarebbe una riserva. "
+    : "\"Per te\" è quanto salgono i punti a giornata della tua formazione migliore se lo prendi (se il ruolo è pieno, " +
+      "al posto del peggiore). ") + `Stime sui dati fino alla giornata ${v.giornata - 1}. È una guida: all'asta decidi tu.`;
   cercaAsta();
 }
 
 function cercaAsta() {
   const q = normalizza($("asta-cerca").value.trim());
-  if (q.length < 2 || !contestoAsta) return $("asta-risultati").replaceChildren();
-  const s = contestoAsta.s;
-  const presi = new Set(asta.presi), miei = new Set(bozza.rosa.map((g) => g.fc_id));
+  if (q.length < 2 || !ctxAsta?.s) return $("asta-risultati").replaceChildren();
+  const s = ctxAsta.s;
+  const disponibili = new Set(s.disponibili.map((g) => g.id)), miei = new Set(s.miei.map((g) => g.id));
   // Anche per nome completo ("lautaro"), dove Sky lo conosce: all'asta si chiamano così.
   const trovati = s.tutti.filter((g) => normalizza(`${g.nome} ${g.alias || ""}`).includes(q)).slice(0, 8);
-  $("asta-risultati").replaceChildren(...(trovati.length ? trovati.map((g) =>
-    miei.has(g.id) || presi.has(g.id)
-      ? el("li", { class: "muted small" }, `${g.nome}: ${miei.has(g.id) ? "è già tuo" : "già preso da altri"}`)
-      : rigaAsta(g, Asta.guadagno(s, g))) : [el("li", { class: "muted small" }, "Nessun giocatore trovato")]));
+  $("asta-risultati").replaceChildren(...(trovati.length ? trovati.map((g) => disponibili.has(g.id)
+    ? rigaAsta(g)
+    : el("li", { class: "muted small" }, `${g.nome}: ${miei.has(g.id) ? "è già tuo" : "già preso da altri"}`))
+    : [el("li", { class: "muted small" }, "Nessun giocatore trovato")]));
 }
 $("asta-cerca").addEventListener("input", cercaAsta);
 
+$("asta-tipo").addEventListener("change", (e) => { statoAsta.tipo = e.target.value; salvaStatoAsta(); disegnaAsta(); });
+$("asta-regole").addEventListener("change", (e) => { statoAsta.zero.modello = e.target.value; salvaStatoAsta(); disegnaAsta(); });
+$("asta-squadre").addEventListener("change", (e) => {
+  statoAsta.zero.squadre = Math.min(20, Math.max(2, Number(e.target.value) || 8)); salvaStatoAsta(); disegnaAsta();
+});
+$("asta-budget").addEventListener("change", (e) => {
+  statoAsta.zero.budget = Math.max(25, Number(e.target.value) || 500); salvaStatoAsta(); disegnaAsta();
+});
 $("asta-crediti").addEventListener("change", (e) => {
-  asta.crediti = Math.max(0, Number(e.target.value) || 0); salvaAsta(); disegnaAsta();
+  ripDi(statoAsta.tipo).crediti = Math.max(0, Number(e.target.value) || 0); salvaStatoAsta(); disegnaAsta();
 });
 $("asta-acquisti").addEventListener("change", (e) => {
-  asta.acquisti = Math.min(25, Math.max(1, Number(e.target.value) || 1)); salvaAsta(); disegnaAsta();
+  ripDi(statoAsta.tipo).acquisti = Math.min(25, Math.max(1, Number(e.target.value) || 1)); salvaStatoAsta(); disegnaAsta();
+});
+
+$("asta-ricomincia").addEventListener("click", () => {
+  if (!confirm("Ricominciare l'asta da capo? Si cancellano la tua rosa e i presi da altri di questa asta.")) return;
+  statoAsta.zero.miei = []; statoAsta.zero.presi = []; salvaStatoAsta(); disegnaAsta();
+});
+
+$("asta-salva-squadra").addEventListener("click", async () => {
+  const nome = prompt("Nome della nuova squadra:");
+  if (!nome?.trim()) return;
+  const lega = prompt("Nome della lega (facoltativo):") || "";
+  try {
+    const z = statoAsta.zero, s = ctxAsta.s;
+    const rosa = z.miei.map((x) => s.perId.get(x.id)).filter(Boolean)
+      .map((g) => ({ fc_id: g.id, nome: g.nome, ruolo: g.ruolo, squadra: g.squadra }));
+    const codice = await rpc("crea_squadra", { p_nome: nome, p_lega: lega, p_regole: ctxAsta.regole });
+    await rpc("salva_squadra", { p_codice: codice, p_nome: nome, p_lega: lega, p_rosa: rosa, p_regole: ctxAsta.regole });
+    ricordaSquadra({ codice, nome, lega });
+    rpc("richiedi_ricalcolo", { p_codice: codice }).catch(() => {});
+    vai(`#/s/${codice}`);
+  } catch (e) {
+    mostraErrore(`Non riesco a salvare la squadra: ${e.message}`);
+  }
 });
 
 let giocatoreAsta = null;
 function apriGiocatoreAsta(g) {
   giocatoreAsta = g;
-  const { s, piano: p } = contestoAsta;
-  const guad = Asta.guadagno(s, g);
+  const n = numeriAsta(g), s = ctxAsta.s;
   $("a-nome").textContent = g.nome;
   $("a-sotto").textContent = `${nomeSquadra(g.squadra)} · prende voto nel ${pct(g.p)} delle giornate · fantavoto medio ${num(g.fv)}`;
-  $("a-giornata").textContent = segno(guad.punti);
-  $("a-max").textContent = asta.crediti ? Asta.offertaMassima(s, p, asta.crediti, guad.punti) : "–";
-  $("a-mercato").textContent = prezzoMercato(g);
   const note = [];
-  if (guad.fuori) note.push(`Ruolo pieno: prenderebbe il posto di ${guad.fuori.nome}.`);
-  note.push(`Da qui a fine stagione: circa ${segno(guad.punti * s.rimanenti, 0)} punti.`);
-  if (!asta.crediti) note.push("Inserisci i crediti disponibili per l'offerta massima.");
+  if (ctxAsta.modo === "zero") {
+    [["Offerta massima", s.liberi[g.ruolo] > 0 ? n.max : "–"], ["Prezzo probabile", n.probabile], ["Valore statistiche", n.valore]]
+      .forEach(([l, v], i) => { $(`a-l${i + 1}`).textContent = l; $(`a-v${i + 1}`).textContent = v; });
+    note.push(s.liberi[g.ruolo] > 0 ? `Per te: ${segno(n.guad.punti)} punti a giornata. Giudizio: ${n.giudizio}.`
+                                    : "Hai già completato questo ruolo.");
+  } else {
+    [["Per te, a giornata", segno(n.guad.punti)], ["Offerta massima", n.max ?? "–"], ["Prezzo di mercato", n.mercato ?? "–"]]
+      .forEach(([l, v], i) => { $(`a-l${i + 1}`).textContent = l; $(`a-v${i + 1}`).textContent = v; });
+    if (n.guad.fuori) note.push(`Ruolo pieno: prenderebbe il posto di ${n.guad.fuori.nome}.`);
+    note.push(`Da qui a fine stagione: circa ${segno(n.guad.punti * s.rimanenti, 0)} punti.`);
+    if (!ctxAsta.crediti) note.push("Inserisci i crediti disponibili per l'offerta massima.");
+  }
   if (g.stato) note.push(`${g.stato[0].toUpperCase() + g.stato.slice(1)}${g.nota ? `: ${g.nota}` : ""}.`);
+  note.push("Il prezzo serve per \"Preso da me\"; per \"Preso da altri\" è facoltativo ma aiuta a stimare i prezzi.");
   $("a-nota").hidden = false;
   $("a-nota").textContent = note.join(" ");
   $("a-prezzo").value = "";
   $("asta-dialog").showModal();
 }
 
-$("a-altri").addEventListener("click", () => {
-  asta.presi = [...asta.presi.filter((x) => x !== giocatoreAsta.id), giocatoreAsta.id];
-  salvaAsta();
+function chiudiGiocatoreAsta() {
   $("asta-dialog").close();
   $("asta-cerca").value = "";
   disegnaAsta();
+}
+
+$("a-altri").addEventListener("click", () => {
+  const g = giocatoreAsta, prezzo = Number($("a-prezzo").value) || null;
+  if (ctxAsta.modo === "zero") {
+    const z = statoAsta.zero;
+    // Senza prezzo si usa quello probabile, per tenere il conto dei crediti rimasti in lega.
+    z.presi = [...z.presi.filter((x) => x.id !== g.id), { id: g.id, prezzo: prezzo || ctxAsta.mercato.probabile(g) }];
+  } else {
+    const r = ripDi(statoAsta.tipo);
+    r.presi = [...r.presi.filter((x) => x !== g.id), g.id];
+  }
+  salvaStatoAsta();
+  chiudiGiocatoreAsta();
 });
 
 $("a-mio").addEventListener("click", async () => {
-  const g = giocatoreAsta;
-  const prezzo = Number($("a-prezzo").value);
+  const g = giocatoreAsta, prezzo = Number($("a-prezzo").value);
   if (!prezzo || prezzo < 1) return $("a-prezzo").focus();
-  const guad = Asta.guadagno(contestoAsta.s, g);
+  if (ctxAsta.modo === "zero") {
+    if (ctxAsta.s.liberi[g.ruolo] <= 0) return mostraErrore(`Hai già completato il ruolo ${g.ruolo}.`);
+    statoAsta.zero.miei.push({ id: g.id, prezzo });
+    salvaStatoAsta();
+    return chiudiGiocatoreAsta();
+  }
+  // Riparazione: va subito nella rosa della squadra (se il ruolo è pieno, svincola il meno utile).
+  const sq = ctxAsta.squadraRip, guad = Asta.guadagno(ctxAsta.s, g);
   if (guad.fuori && !confirm(`Ruolo pieno: svincoli ${guad.fuori.nome} per fare posto a ${g.nome}?`)) return;
-  const rosaPrima = clona(bozza.rosa);
-  if (guad.fuori) bozza.rosa = bozza.rosa.filter((x) => x.fc_id !== guad.fuori.id);
-  bozza.rosa.push({ fc_id: g.id, nome: g.nome, ruolo: g.ruolo, squadra: g.squadra });
+  const rosa = sq.rosa.filter((x) => !guad.fuori || x.fc_id !== guad.fuori.id)
+    .concat({ fc_id: g.id, nome: g.nome, ruolo: g.ruolo, squadra: g.squadra });
   try {
-    await rpc("salva_squadra", { p_codice: squadra.codice, p_nome: bozza.nome, p_lega: bozza.lega || "",
-                                 p_rosa: bozza.rosa, p_regole: bozza.regole });
-    squadra = { ...squadra, ...clona(bozza) };
-    asta.crediti = Math.max(0, asta.crediti - prezzo);
-    asta.acquisti = Math.max(1, (asta.acquisti || Number($("asta-acquisti").value) || 3) - 1);
-    salvaAsta();
-    $("asta-dialog").close();
-    $("asta-cerca").value = "";
-    disegnaRosa(); aggiornaBarra(); disegnaAsta();
+    await rpc("salva_squadra", { p_codice: sq.codice, p_nome: sq.nome, p_lega: sq.lega || "", p_rosa: rosa, p_regole: sq.regole });
+    sq.rosa = rosa;
+    const r = ripDi(sq.codice);
+    r.crediti = Math.max(0, r.crediti - prezzo);
+    r.acquisti = Math.max(1, (r.acquisti || Number($("asta-acquisti").value) || 3) - 1);
+    salvaStatoAsta();
+    chiudiGiocatoreAsta();
   } catch (e) {
-    bozza.rosa = rosaPrima;
     mostraErrore(`Non riesco a salvare l'acquisto: ${e.message}`);
   }
 });

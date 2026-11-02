@@ -40,7 +40,11 @@ Dal 2 novembre 2026 l'app gestisce più squadre (gruppo di amici, leghe diverse)
 Web app su https://ernspa94.github.io/fanta-consigliere/ — su iPhone: Safari → Condividi → Aggiungi alla schermata Home.
 Pubblicata da `.github/workflows/pages.yml` quando cambia `app/`. Squadre e consigli arrivano da Supabase; listone (`output/listone.json`) e modelli di regolamento da raw.githubusercontent.com. Tiene una copia dell'ultimo consiglio per l'uso offline.
 
-## Asta (scheda "Asta")
+## Asta (scheda "Asta" della home)
+
+Due tipi, scelti in "Che asta fai?" e salvati solo sul telefono:
+- **Da zero**: regolamento (modello), squadre in lega, crediti a testa; la rosa si costruisce segnando "Preso da me"; alla fine "Salva come nuova squadra". Prezzi per tutta la lega (`Asta.mercatoLega`): il valore di un giocatore è quanto supera l'ultimo titolare comprato nel suo ruolo (rimpiazzo = squadre × titolari medi × 1,25), e i crediti rimasti in lega si dividono in proporzione. Stessa divisione con l'FVM per il "prezzo probabile". Offerta massima = media dei due, ridotta se per me sarebbe una riserva, con 1 credito tenuto per ogni posto vuoto. "Preso da altri" con prezzo facoltativo (senza, conta il prezzo probabile) per tenere il conto dei crediti della lega.
+- **Riparazione** di una mia squadra: come prima (piano di acquisti sui crediti disponibili, "Preso da me" entra subito nella rosa sul server).
 
 - Il motore pubblica `output/valori.json` (`fanta/mercato.py`): per tutto il listone presenza attesa, media voto, frequenza di gol/assist/cartellini/rigori, gol subiti della squadra, FVM, nome completo da Sky (per cercare "Lautaro" invece di "Martinez L.").
 - L'app (`app/asta.js`) applica il regolamento della squadra: fantavoto medio, punti attesi della formazione migliore (con le sostituzioni dalla panchina), "per te" = quanto salgono se lo prendi (o se sostituisce il peggiore del ruolo), offerta massima = crediti divisi in proporzione al valore portato da un piano di acquisti, tenendo 1 credito per ogni posto.
