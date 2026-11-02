@@ -3,3 +3,4 @@ data/cache/
 __pycache__/
 .pytest_cache/
 data/segreti/
+data/voti/

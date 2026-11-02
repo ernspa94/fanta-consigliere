@@ -113,6 +113,20 @@ def leggi_statistiche(html):
     return out
 
 
+def leggi_rigoristi(html):
+    """Per ogni squadra, gli id dei rigoristi in ordine (1°, 2°, 3°)."""
+    soup = BeautifulSoup(html, "html.parser")
+    out = {}
+    for card in soup.select("div.team-card"):
+        for col in card.select("div.col"):
+            titolo = col.select_one("header")
+            if titolo and titolo.get_text(strip=True).lower() == "rigori":
+                ordine = [_id_squadra(a) for a in col.select("ol a.player-link")]
+                if ordine:
+                    out[ordine[0][1]] = [pid for pid, _ in ordine]
+    return out
+
+
 def inizio_giornata(giornata, stagione="2026-27"):
     """Data e ora della prima partita della giornata (la pagina della giornata mostra quella)."""
     soup = BeautifulSoup(scarica(f"/serie-a/calendario/{giornata}/{stagione}", max_eta_min=360), "html.parser")
@@ -129,6 +143,7 @@ def carica_tutto(stagione="2026-27", stagione_prec="2025-26"):
         "probabili": leggi_probabili(scarica("/probabili-formazioni-serie-a")),
         "stat": leggi_statistiche(scarica(f"/statistiche-serie-a/{stagione}", max_eta_min=360)),
         "stat_prec": leggi_statistiche(scarica(f"/statistiche-serie-a/{stagione_prec}", max_eta_min=60 * 24 * 30)),
+        "rigoristi": leggi_rigoristi(scarica("/rigoristi-serie-a", max_eta_min=360)),
     }
 
 

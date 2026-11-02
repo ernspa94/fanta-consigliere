@@ -52,7 +52,24 @@ Si lancia da `engine/` con `../.venv/bin/python -m fanta.consiglia` e salva il r
 | `fanta/ottimizzatore.py` | Per ogni modulo: formazione iniziale, poi scambi titolare/panchinaro finché migliora |
 | `tests/test_regole.py` | Test delle regole su scenari costruiti a mano |
 
-Limiti noti del modello: non usa le quote dei bookmaker, non sa chi tira i rigori e non tiene conto dei minuti giocati dai subentrati. Le statistiche di Serie B delle neopromosse non sono disponibili.
+| `fanta/storico_voti.py` | Voti veri giornata per giornata (Redazione Fantacalcio). Attenzione: il sito scrive 55 per "senza voto" |
+| `fanta/banco_prova.py` | Confronta il fantavoto previsto dei titolari con quello vero, giornata per giornata |
+
+### Banco di prova (2 novembre 2026)
+
+Per ogni giornata si ricostruiscono le statistiche fino alla giornata prima e si prevede il fantavoto di chi parte titolare. Misure: errore medio e **correlazione di rango tra giocatori dello stesso ruolo** (quanto bene il modello ordina, ad esempio, i difensori: è la scelta che fa l'ottimizzatore).
+
+| | 2025-26 (taratura) | 2026-27 g2–9 (verifica) |
+|---|---|---|
+| Fantamedia fino alla giornata prima | errore 1,085 · rango 0,135 | errore 1,300 · rango 0,148 |
+| Modello iniziale | errore 1,047 · rango 0,185 | errore 1,151 · rango 0,251 |
+| Modello con rigoristi e parametri tarati | errore 1,041 · rango 0,189 | errore 1,138 · rango 0,265 |
+
+- Rigoristi: i gol su rigore si stimano a parte, da quanti rigori ha la squadra e da chi li tira (`/rigoristi-serie-a`); se il 1° rigorista non gioca passano al successivo.
+- Taratura sul rango e non sull'errore: minimizzare l'errore "appiattisce" le previsioni e peggiora l'ordine dei giocatori.
+- Rilanciare: `../.venv/bin/python -m fanta.banco_prova` dalla cartella `engine/` (prima volta: scarica ~90 pagine di voti, poi resta in `data/voti/`).
+
+Limiti noti: niente quote dei bookmaker (nessuna fonte gratuita affidabile); forza squadre non corretta per gli avversari affrontati; la probabilità di giocare viene solo dalle probabili (la sua precisione si potrà misurare con lo storico dei consigli).
 
 ## Regole che contano per l'algoritmo
 

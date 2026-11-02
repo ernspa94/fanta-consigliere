@@ -8,13 +8,17 @@ Il modello è volutamente semplice e trasparente:
 - probabilità di prendere voto dalle probabili formazioni di Fantacalcio.it.
 """
 
+import math
 from collections import defaultdict
 
-PESO_STAGIONE_PREC = 0.5   # una partita della scorsa stagione vale mezza partita di questa
-PRIOR_PARTITE = 4          # "partite fittizie" di media di ruolo aggiunte a ogni giocatore
+PESO_STAGIONE_PREC = 0.35  # una partita della scorsa stagione vale un terzo di una di questa
+PRIOR_PARTITE = 10         # "partite fittizie" di media di ruolo aggiunte a ogni giocatore
 PRIOR_PARTITE_SQUADRA = 8  # idem per la forza delle squadre
+# Valori tarati con banco_prova.py sui voti veri 2025-26 e verificati sul 2026-27.
 FATTORE_CASA, FATTORE_TRASFERTA = 1.08, 0.92
 AFFIDABILITA_TITOLARE = 0.94  # anche al 100% sulle probabili c'è qualche sorpresa
+# Quanto la difficoltà della partita sposta il voto in pagella (per gol attesi di differenza).
+COEF_VOTO_DIFESA, COEF_VOTO_ATTACCO = 0.25, 0.35
 
 # Valori medi per ruolo, per partita a voto.
 PRIOR = {
@@ -23,6 +27,12 @@ PRIOR = {
     "C": {"mv": 6.00, "gol": 0.07,  "ass": 0.09,  "amm": 0.18, "esp": 0.010, "rig_err": 0.005, "rp": 0.0},
     "A": {"mv": 6.00, "gol": 0.25,  "ass": 0.08,  "amm": 0.10, "esp": 0.008, "rig_err": 0.015, "rp": 0.0},
 }
+# Gol su azione (rigori esclusi) per partita a voto: i rigori si stimano a parte.
+PRIOR_GOL_AZIONE = {"P": 0.0, "D": 0.03, "C": 0.06, "A": 0.21}
+USA_RIGORISTI = True
+QUOTA_RIGORI = (0.85, 0.10, 0.05)  # quanti rigori della squadra tira il 1°, 2°, 3° rigorista
+CONVERSIONE_RIGORI = 0.78           # media di Serie A
+PRIOR_PARTITE_RIGORI = 15
 # Probabilità di entrare dalla panchina (e prendere voto) se non si parte titolari.
 INGRESSO_DA_PANCHINA = {"P": 0.01, "D": 0.25, "C": 0.40, "A": 0.45}
 
@@ -76,11 +86,62 @@ def _tasso(totale_corr, pv_corr, totale_prec, pv_prec, prior):
         pv_corr + PESO_STAGIONE_PREC * pv_prec + PRIOR_PARTITE)
 
 
+def rigoristi_dalle_statistiche(stat, stat_prec):
+    """Senza la lista di Fantacalcio.it: per ogni squadra, chi ha tirato più rigori finora."""
+    punteggio = defaultdict(dict)
+    for pid, s in stat.items():
+        if s["rig_tirati"]:
+            punteggio[s["squadra"]][pid] = s["rig_tirati"]
+    for pid, s in stat_prec.items():
+        sq = stat.get(pid, s)["squadra"]  # conta solo se è ancora nella stessa squadra
+        if s["rig_tirati"] and sq == s["squadra"]:
+            punteggio[sq][pid] = punteggio[sq].get(pid, 0) + PESO_STAGIONE_PREC * s["rig_tirati"]
+    return {sq: sorted(p, key=lambda pid: -p[pid]) for sq, p in punteggio.items()}
+
+
+def rigoristi_in_campo(ordine, probabili):
+    """Toglie dalla lista i rigoristi che non dovrebbero giocare: i rigori passano al successivo."""
+    def gioca(pid):
+        info = probabili.get(pid)
+        return info is not None and info.get("stato") == "ok" and info.get("pct_titolare", 0) >= 0.5
+    in_campo = [pid for pid in ordine if gioca(pid)]
+    return in_campo or ordine
+
+
+def rigori_per_partita(stat, stat_prec, partite_giocate):
+    """Rigori tirati per partita da ogni squadra (ristretti verso la media del campionato)."""
+    tiri, tiri_prec = defaultdict(float), 0.0
+    for s in stat.values():
+        tiri[s["squadra"]] += s["rig_tirati"]
+    for s in stat_prec.values():
+        tiri_prec += s["rig_tirati"]
+    squadre = max(len(tiri), 20)
+    media = (sum(tiri.values()) + tiri_prec) / (squadre * (partite_giocate + 38))
+    k = PRIOR_PARTITE_RIGORI
+    return {sq: (t + media * k) / (partite_giocate + k) for sq, t in tiri.items()}, media
+
+
+def fantavoto_atteso(p, bm):
+    """Fantavoto medio previsto se il giocatore parte titolare (stesse ipotesi della simulazione)."""
+    r, fa = p["ruolo"], p["fattore_attacco"]
+    fv = p["mv_partita"] + bm["gol"][r] * p["gol"] * fa + bm["assist"][r] * p["ass"] * fa \
+        + bm["ammonizione"][r] * p["amm"] + bm["espulsione"][r] * p["esp"] \
+        + bm["rigore_sbagliato"][r] * p["rig_err"]
+    if r == "P" and p.get("avversario"):
+        lam = p["gol_subiti_squadra"]
+        fv += bm["gol_subito"][r] * lam + bm["porta_imbattuta"][r] * math.exp(-lam) \
+            + bm["rigore_parato"][r] * p["rp"]
+    return fv
+
+
 def parametri_giocatori(rosa, dati):
     prob = dati["probabili"]
     partite_giocate = prob["giornata"] - 1
     forza, media = forza_squadre(dati["stat"], dati["stat_prec"], partite_giocate)
     ctx = contesto_partite(prob["partite"], forza, media)
+
+    rigoristi = dati.get("rigoristi") or rigoristi_dalle_statistiche(dati["stat"], dati["stat_prec"])
+    rigori_squadra, rigori_medi = rigori_per_partita(dati["stat"], dati["stat_prec"], partite_giocate)
 
     vuoto = {"pv": 0, "mv": 0, "gol": 0, "ass": 0, "amm": 0, "esp": 0, "rig_segnati": 0, "rig_tirati": 0, "rp": 0}
     out = []
@@ -90,7 +151,8 @@ def parametri_giocatori(rosa, dati):
         s0 = dati["stat_prec"].get(pid, vuoto)
         pr = PRIOR[ruolo]
         info_prob = prob["giocatori"].get(pid)
-        squadra = s1.get("squadra") or (info_prob or {}).get("squadra") or g["squadra"].lower()
+        # Le probabili hanno la squadra attuale (conta per chi è stato ceduto a gennaio).
+        squadra = (info_prob or {}).get("squadra") or s1.get("squadra") or g["squadra"].lower()
         c = ctx.get(squadra)
 
         p = {
@@ -118,18 +180,31 @@ def parametri_giocatori(rosa, dati):
 
         # Rendimento atteso.
         mv = _ristretto(s1["mv"], s1["pv"], s0["mv"], s0["pv"], pr["mv"])
-        rig_err = lambda s: s["rig_tirati"] - s["rig_segnati"]
         tasso = lambda k, t1, t0: _tasso(t1, s1["pv"], t0, s0["pv"], pr[k])
         p.update({
             "mv": mv,
-            "gol": tasso("gol", s1["gol"], s0["gol"]),
             "ass": tasso("ass", s1["ass"], s0["ass"]),
             "amm": tasso("amm", s1["amm"], s0["amm"]),
             "esp": tasso("esp", s1["esp"], s0["esp"]),
-            "rig_err": tasso("rig_err", rig_err(s1), rig_err(s0)),
             "rp": tasso("rp", s1["rp"], s0["rp"]),
             "pv": s1["pv"], "fm": s1.get("fm", 0.0),
         })
+        if USA_RIGORISTI:
+            # Gol su azione dallo storico; i rigori dipendono da quanti ne ha la squadra e da chi li tira.
+            gol_azione = _tasso(s1["gol"] - s1["rig_segnati"], s1["pv"], s0["gol"] - s0["rig_segnati"],
+                                s0["pv"], PRIOR_GOL_AZIONE[ruolo])
+            ordine = rigoristi_in_campo(rigoristi.get(squadra, []), prob["giocatori"])
+            quota = QUOTA_RIGORI[ordine.index(pid)] if pid in ordine[:len(QUOTA_RIGORI)] else 0.0
+            tiri = quota * rigori_squadra.get(squadra, rigori_medi)
+            segnati = s1["rig_segnati"] + PESO_STAGIONE_PREC * s0["rig_segnati"]
+            tirati = s1["rig_tirati"] + PESO_STAGIONE_PREC * s0["rig_tirati"]
+            conv = (segnati + CONVERSIONE_RIGORI * 5) / (tirati + 5)
+            p.update({"gol": gol_azione + tiri * conv, "rig_err": tiri * (1 - conv),
+                      "rigorista": ordine.index(pid) + 1 if pid in ordine else None})
+        else:
+            rig_err = lambda s: s["rig_tirati"] - s["rig_segnati"]
+            p.update({"gol": tasso("gol", s1["gol"], s0["gol"]),
+                      "rig_err": tasso("rig_err", rig_err(s1), rig_err(s0)), "rigorista": None})
 
         if c:
             att_medio = forza[squadra]["attacco"]
@@ -142,9 +217,9 @@ def parametri_giocatori(rosa, dati):
             })
             # Voto in pagella un po' più alto/basso in base alla difficoltà della partita.
             if ruolo in ("P", "D"):
-                p["mv_partita"] = mv + 0.25 * (dif_media - c["gol_subiti"])
+                p["mv_partita"] = mv + COEF_VOTO_DIFESA * (dif_media - c["gol_subiti"])
             else:
-                p["mv_partita"] = mv + 0.10 * (c["gol_fatti"] - att_medio)
+                p["mv_partita"] = mv + COEF_VOTO_ATTACCO * (c["gol_fatti"] - att_medio)
         else:
             p.update({"avversario": None, "casa": None, "gol_fatti_squadra": 0.0,
                       "gol_subiti_squadra": 0.0, "fattore_attacco": 1.0, "mv_partita": mv})

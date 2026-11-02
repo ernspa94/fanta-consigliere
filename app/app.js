@@ -42,7 +42,10 @@ function apriDettaglio(g) {
   $("d-voto").textContent = pct(g.p_voto);
   $("d-fv").textContent = num(g.fantavoto_se_gioca);
   $("d-attesi").textContent = num(g.punti_attesi, 2);
-  const nota = g.nota ? `${g.stato[0].toUpperCase() + g.stato.slice(1)}: ${g.nota}` : null;
+  const righe = [];
+  if (g.rigorista) righe.push(`Rigorista n°${g.rigorista} della squadra.`);
+  if (g.nota) righe.push(`${g.stato[0].toUpperCase() + g.stato.slice(1)}: ${g.nota}`);
+  const nota = righe.length ? righe.join(" ") : null;
   $("d-nota").hidden = !nota;
   $("d-nota").textContent = nota || "";
   $("dettaglio").showModal();

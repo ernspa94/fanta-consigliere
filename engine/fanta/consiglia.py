@@ -53,6 +53,7 @@ def calcola(n_simulazioni=4000, adesso=None):
             "fantavoto_se_gioca": round(float(fv[prende_voto, i].mean()), 2) if prende_voto.any() else None,
             "punti_attesi": round(float(valore[i]), 2),
             "stato": g["stato"], "nota": g["nota"],
+            "rigorista": g.get("rigorista"),
         }
 
     soglie = lega["scontri_diretti"]["soglie_gol"]
