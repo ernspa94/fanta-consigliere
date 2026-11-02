@@ -184,7 +184,7 @@ ol.lista li::before {
 
 .alternative { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
 .alternative li { border: 1px solid var(--border); border-radius: 10px; font-size: 0.9rem; }
-.alternative button { all: unset; box-sizing: border-box; width: 100%; padding: 8px 10px; display: flex; justify-content: space-between; cursor: pointer; }
+.alternative button { all: unset; box-sizing: border-box; width: 100%; padding: 8px 10px; display: flex; justify-content: space-between; gap: 6px; cursor: pointer; }
 .aiuto { margin: -4px 0 10px; }
 .alternative li.scelto { border-color: var(--accent); color: var(--accent); font-weight: 700; }
 
@@ -354,3 +354,6 @@ dialog p { margin: 4px 0 12px; }
 .guadagno { font-weight: 700; color: var(--accent); white-space: nowrap; font-size: 0.9rem; text-align: right; }
 .guadagno small { display: block; font-weight: 400; color: var(--muted); font-size: 0.72rem; }
 .schede button { font-size: 0.78rem; padding: 8px 2px; }
+.alternative { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+.alternative span { white-space: nowrap; }
+.link-guida { color: var(--accent); font-weight: 600; }
