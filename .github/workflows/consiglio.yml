@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: write
+  actions: write   # solo per "Tieni acceso il giro programmato"
 
 concurrency:
   group: consiglio
@@ -37,6 +38,17 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+
+      - name: Tieni acceso il giro programmato
+        # GitHub spegne i giri programmati dopo 60 giorni senza attività nel repository (d'estate, o se
+        # il calcolo si rompe e non arrivano più commit). Riattivarlo una volta al giorno azzera il conto.
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$(date -u +%H)" = "03" ]; then
+            gh workflow enable consiglio.yml -R "$GITHUB_REPOSITORY" || echo "Riattivazione non riuscita"
+          fi
 
       - name: Serve ricalcolare?
         id: piano

@@ -69,10 +69,10 @@ def test_archivio_probabili_tiene_prima_e_ultima(tmp_path, monkeypatch):
     dati = lambda pct: {"probabili": {"giocatori": {1: {"squadra": "napoli", "pct_titolare": pct, "stato": "ok",
                                                         "lista": "titolare"}}},
                         "sky": {"giocatori": {1: {"sky": "titolare", "ufficiale": False}}, "squadre": {"napoli": False}}}
-    assert SP.salva(dati(0.55), 11)
-    assert not SP.salva(dati(0.55), 11)          # niente di nuovo: non riscrive
-    assert SP.salva(dati(1.0), 11)
-    f = SP.carica()[11]
+    assert SP.salva(dati(0.55), 11, "2026-27")
+    assert not SP.salva(dati(0.55), 11, "2026-27")          # niente di nuovo: non riscrive
+    assert SP.salva(dati(1.0), 11, "2026-27")
+    f = SP.carica("2026-27")[11]
     assert f["primo"]["dati"]["giocatori"]["1"]["fc"] == 0.55
     assert f["ultimo"]["dati"]["giocatori"]["1"] == {"squadra": "napoli", "fc": 1.0, "lista": "titolare",
                                                      "sky": "titolare", "uff": False}

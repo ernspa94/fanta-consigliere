@@ -307,6 +307,7 @@ ol.lista li::before {
 .aiuto { margin: -6px 0 12px; }
 
 .errore { color: var(--bad); }
+.avviso-fermo { border-left: 4px solid var(--warn); font-size: 0.92rem; }
 
 /* --- Campi e pulsanti --- */
 .scegli-giornata { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }

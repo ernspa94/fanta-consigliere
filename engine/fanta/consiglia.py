@@ -24,12 +24,20 @@ MINIMO_PER_RUOLO = {"P": 1, "D": 3, "C": 3, "A": 1}
 
 def stato_giornata(dati, adesso):
     """Giornata da consigliare. Le probabili restano sulla giornata in corso finché il sito non passa
-    alla successiva: se è già iniziata la formazione non si può più cambiare, quindi si aspetta la prossima."""
+    alla successiva: se è già iniziata la formazione non si può più cambiare, quindi si aspetta la prossima.
+    D'estate le probabili sono ancora della stagione finita: si aspetta la 1ª giornata della nuova."""
+    stagione = dati.get("stagione") or fonti.stagione_corrente(adesso)
     giornata = dati["probabili"]["giornata"]
-    inizio = fonti.inizio_giornata(giornata)
+
+    def attesa(g, st):
+        return {"giornata": g, "pronta": False, "inizio": fonti.inizio_giornata(g, st), "stagione": st}
+
+    if not giornata or dati["probabili"].get("stagione") not in (None, stagione):
+        return attesa(1, stagione)
+    inizio = fonti.inizio_giornata(giornata, stagione)
     if inizio and adesso >= inizio:
-        return {"giornata": giornata + 1, "pronta": False, "inizio": fonti.inizio_giornata(giornata + 1)}
-    return {"giornata": giornata, "pronta": True, "inizio": inizio}
+        return attesa(1, fonti.stagione_dopo(stagione)) if giornata >= 38 else attesa(giornata + 1, stagione)
+    return {"giornata": giornata, "pronta": True, "inizio": inizio, "stagione": stagione}
 
 
 def regole_complete(regole):
@@ -56,6 +64,8 @@ def calcola(squadra, dati, giornata, n_simulazioni=4000):
     base = {
         "aggiornato": datetime.now(timezone.utc).isoformat(timespec="minutes"),
         "giornata": giornata["giornata"],
+        "stagione": giornata["stagione"],
+        "chiave": fonti.chiave_giornata(giornata["stagione"], giornata["giornata"]),
         "squadra": squadra["nome"],
         "inizio": inizio.isoformat() if inizio else None,
         "scadenza": (inizio - timedelta(minutes=1)).isoformat() if inizio else None,
@@ -158,10 +168,25 @@ def pubblica_dati_comuni(dati, giornata):
                                       encoding="utf-8")
     inizio = giornata["inizio"]
     (out / "giornata.json").write_text(json.dumps({
-        "giornata": giornata["giornata"], "pronta": giornata["pronta"],
+        "giornata": giornata["giornata"], "stagione": giornata["stagione"], "pronta": giornata["pronta"],
         "inizio": inizio.isoformat() if inizio else None,
         "scadenza": (inizio - timedelta(minutes=1)).isoformat() if inizio else None,
     }, indent=2) + "\n", encoding="utf-8")
+
+
+def batti(adesso):
+    """output/battito.json cambia una volta al giorno se il motore ha girato senza errori. Serve a due cose:
+    il commit quotidiano tiene attivi i giri programmati di GitHub (si fermano dopo 60 giorni senza
+    modifiche, per esempio d'estate) e l'app avvisa se il battito è fermo da giorni."""
+    file = ROOT / "output" / "battito.json"
+    oggi = adesso.date().isoformat()
+    try:
+        if json.loads(file.read_text(encoding="utf-8")).get("giorno") == oggi:
+            return
+    except (OSError, ValueError):
+        pass
+    file.write_text(json.dumps({"giorno": oggi, "ora": adesso.isoformat(timespec="minutes")}) + "\n",
+                    encoding="utf-8")
 
 
 def main(codice=None, adesso=None):
@@ -170,10 +195,11 @@ def main(codice=None, adesso=None):
     dati = fonti.carica_tutto()
     giornata = stato_giornata(dati, adesso)
     pubblica_dati_comuni(dati, giornata)
-    mercato.pubblica(dati, giornata["giornata"], dati["probabili"]["giocatori"])
+    mercato.pubblica(dati, giornata, dati["probabili"]["giocatori"])
     if giornata["pronta"]:
         # Le probabili della giornata, finché si può ancora cambiare formazione: serviranno a tararle.
-        storico_probabili.salva(dati, giornata["giornata"])
+        storico_probabili.salva(dati, giornata["giornata"], giornata["stagione"])
+    arch.prepara()
 
     if codice and not re.fullmatch(r"[0-9a-f]{6,32}", codice):
         raise SystemExit("Codice squadra non valido")
@@ -206,6 +232,7 @@ def main(codice=None, adesso=None):
             traceback.print_exc()
     if errori:
         raise SystemExit(f"{errori} squadre non calcolate")
+    batti(adesso)
 
 
 if __name__ == "__main__":

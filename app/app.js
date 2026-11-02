@@ -202,6 +202,7 @@ async function apriSquadra(codice, scheda) {
     aggiornaBarra();
     caricaConsiglio();
     preparaNotifiche();
+    rinnovaNotifiche(codice);
   }
   $("titolo").textContent = bozza.nome;
   $("sottotitolo").textContent = bozza.lega || "";
@@ -809,11 +810,20 @@ function mostraFormazione(c, f) {
   $("moduli-aiuto").hidden = !c.alternative.some((a) => a.titolari);
 }
 
+// Le giornate salvate hanno chiave stagione+giornata (202611 = giornata 11 del 2026-27).
+const stagioneDi = (k) => (k >= 1000 ? `${Math.floor(k / 100)}-${String((Math.floor(k / 100) + 1) % 100).padStart(2, "0")}` : null);
+function nomeGiornata(k) {
+  const s = stagioneDi(k);
+  const g = k >= 1000 ? k % 100 : k;
+  return s && attuale?.stagione && s !== attuale.stagione ? `${g} (${s})` : String(g);
+}
+
 function riempiGiornate(giornate) {
-  const passate = giornate.filter((g) => !attuale || g !== attuale.giornata);
+  const corrente = attuale?.chiave ?? attuale?.giornata;
+  const passate = giornate.filter((k) => k !== corrente);
   $("giornata").replaceChildren(
     el("option", { value: "attuale" }, `${attuale?.giornata ?? "–"} · prossima`),
-    ...passate.map((g) => el("option", { value: String(g) }, `${g} · giocata`)));
+    ...passate.map((k) => el("option", { value: String(k) }, `${nomeGiornata(k)} · giocata`)));
   $("box-giornata").hidden = passate.length === 0;
 }
 
@@ -845,7 +855,7 @@ $("giornata").addEventListener("change", async (e) => {
     const r = await rpc("leggi_consiglio", { p_codice: squadra.codice, p_giornata: Number(v) });
     mostra(r.consiglio, true);
   } catch (err) {
-    mostraErrore(`Non riesco a caricare la giornata ${v}: ${err.message}`);
+    mostraErrore(`Non riesco a caricare la giornata ${nomeGiornata(Number(v))}: ${err.message}`);
   }
 });
 
@@ -923,6 +933,22 @@ async function preparaNotifiche() {
   }
 }
 
+// iOS a volte fa scadere o cancella l'iscrizione push senza dire niente. Se su questo telefono le notifiche
+// della squadra erano attive, una volta al giorno all'apertura l'iscrizione si rinnova in silenzio
+// (salva_iscrizione aggiorna quella esistente, oppure la rimette se il server l'aveva tolta).
+async function rinnovaNotifiche(codice) {
+  const oggi = new Date().toISOString().slice(0, 10);
+  if (!leggiLocale(`notifiche:${codice}`, false) || leggiLocale(`rinnovo:${codice}`, "") === oggi) return;
+  if (!("PushManager" in window) || !installata() || Notification.permission !== "granted") return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const iscrizione = (await reg.pushManager.getSubscription())
+      || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chiaveVapid() }));
+    await rpc("salva_iscrizione", { p_codice: codice, p_nome: leggiLocale("nome", ""), p_iscrizione: iscrizione.toJSON() });
+    scriviLocale(`rinnovo:${codice}`, oggi);
+  } catch {}
+}
+
 $("notifiche-attiva").addEventListener("click", async () => {
   const nome = $("notifiche-nome").value.trim();
   if (!nome) return $("notifiche-nome").focus();
@@ -961,5 +987,19 @@ $("notifiche-disattiva").addEventListener("click", async () => {
 const daLink = new URLSearchParams(location.search).get("squadra");
 if (daLink) history.replaceState(null, "", `${location.pathname}#/s/${daLink.toLowerCase()}`);
 instrada();
+
+// Il motore aggiorna output/battito.json una volta al giorno quando gira senza errori: se è fermo da
+// 2 giorni o più qualcosa si è inceppato (GitHub, Supabase o le pagine delle fonti) e i consigli invecchiano.
+async function controllaBattito() {
+  try {
+    const { giorno } = await pubblico("output/battito.json");
+    const giorni = Math.floor((Date.now() - new Date(`${giorno}T12:00:00`)) / 86400000);
+    $("fermo").hidden = giorni < 2;
+    $("fermo").textContent = `Gli aggiornamenti automatici sono fermi da ${giorni} giorni: i consigli potrebbero ` +
+      "non essere aggiornati. Avvisa chi gestisce l'app.";
+  } catch {} // file non ancora pubblicato o niente rete: nessun avviso
+}
+controllaBattito();
+document.addEventListener("visibilitychange", () => { if (!document.hidden) controllaBattito(); });
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");

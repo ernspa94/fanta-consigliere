@@ -113,3 +113,21 @@ Limiti noti: niente quote dei bookmaker (nessuna fonte gratuita affidabile); for
 - **Massimo 5 sostituzioni**, panchina lunga, il primo panchinaro dello stesso ruolo nell'ordine di panchina: l'ordine della panchina va consigliato.
 - **Senza voto non sostituibile = 0**: penalizza molto i titolari incerti.
 - **Soglie gol** 66 / 70 / 74 …: si ragiona sui fantapunti attesi, la soglia serve solo per mostrare i gol stimati.
+
+## Perché l'app non si "spegne" (e cosa fare se succede)
+
+Cosa la tiene accesa da sola:
+- **Stagione dalla data** (`fonti.stagione_corrente`: da luglio è la stagione nuova). Statistiche, voti, calendario e archivio delle probabili cambiano stagione da soli; nessun "2026-27" scritto nel codice tranne la conversione una tantum dei primi consigli (`archivio.Supabase.prepara`).
+- **Estate**: finché la pagina delle probabili è della stagione finita, il consiglio resta "in attesa della 1ª giornata" (`consiglia.stato_giornata`); il motore continua a girare e il listone per l'asta da zero si aggiorna (con le statistiche della stagione prima).
+- **Consigli per stagione**: su Supabase la colonna `giornata` contiene la chiave stagione+giornata (202611 = giornata 11 del 2026-27), così la giornata 1 di due stagioni non si sovrascrive. Il menu dell'app mostra il numero e, se di un'altra stagione, anche la stagione.
+- **Fonti che cadono**: statistiche, stagione precedente, rigoristi e Sky sono facoltativi (si va avanti senza); senza la pagina delle probabili il giro fallisce e riprova al successivo.
+- **GitHub (60 giorni)**: GitHub spegne i giri programmati dopo 60 giorni senza attività. Ogni giorno alle 3 (UTC) il workflow si riattiva da solo (`gh workflow enable`), e il battito quotidiano fa comunque un commit.
+- **Supabase (7 giorni)**: il piano gratuito mette in pausa i progetti fermi da una settimana. `pianifica.py` lo interroga ogni 15 minuti, quindi resta sveglio finché gira il workflow.
+- **Battito**: `output/battito.json` cambia una volta al giorno se il motore ha girato senza errori. Se è fermo da 2 giorni o più, l'app mostra un avviso giallo in alto.
+- **Notifiche**: se sul telefono erano attive, l'app rinnova l'iscrizione in silenzio una volta al giorno quando si apre la squadra (iOS ogni tanto la fa scadere).
+
+Cosa fare se compare l'avviso "aggiornamenti fermi":
+1. GitHub → repository `fanta-consigliere` → **Actions** → "Aggiorna consiglio formazione". Se c'è un banner "This scheduled workflow is disabled", premi **Enable workflow**.
+2. Se i giri sono rossi, apri l'ultimo e leggi l'errore. Di solito è cambiata una pagina delle fonti (selettori in `engine/fanta/fonti.py` o `sky.py`).
+3. Se l'errore parla di Supabase (connessione rifiutata, 540, "paused"): supabase.com → progetto → **Restore project**. I dati restano.
+4. Per provare subito: Actions → "Run workflow" (anche con il codice di una squadra).

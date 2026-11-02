@@ -43,10 +43,24 @@ class Supabase:
         return righe[0]["dati"] if righe else None
 
     def salva_consiglio(self, codice, consiglio):
+        # Nella colonna "giornata" va la chiave stagione+giornata (202611): così le stagioni non si mescolano.
         self._richiesta("POST", "consigli?on_conflict=codice,giornata",
-                        [{"codice": codice, "giornata": consiglio["giornata"], "dati": consiglio,
-                          "aggiornato": consiglio["aggiornato"]}],
+                        [{"codice": codice, "giornata": consiglio.get("chiave") or consiglio["giornata"],
+                          "dati": consiglio, "aggiornato": consiglio["aggiornato"]}],
                         prefer="resolution=merge-duplicates")
+
+    def prepara(self):
+        """Una volta sola: i primi consigli (2026-27) erano salvati con il solo numero di giornata."""
+        vecchi = self._richiesta("GET", "consigli?giornata=lt.1000&select=codice,giornata,dati,aggiornato")
+        for r in vecchi:
+            chiave = 2026 * 100 + r["giornata"]
+            dati = {**r["dati"], "stagione": "2026-27", "chiave": chiave}
+            self._richiesta("POST", "consigli?on_conflict=codice,giornata",
+                            [{"codice": r["codice"], "giornata": chiave, "dati": dati, "aggiornato": r["aggiornato"]}],
+                            prefer="resolution=merge-duplicates")
+            self._richiesta("DELETE", f"consigli?codice=eq.{urllib.parse.quote(r['codice'])}&giornata=eq.{r['giornata']}")
+        if vecchi:
+            print(f"Convertiti {len(vecchi)} consigli al nuovo formato (stagione+giornata)")
 
     def aggiorna_squadra(self, codice, campi):
         self._richiesta("PATCH", f"squadre?codice=eq.{urllib.parse.quote(codice)}", campi)
@@ -75,6 +89,9 @@ class Locale:
                      for g in rosa["giocatori"]]
         return [{"codice": self.codice, "nome": rosa["squadra"], "lega": rosa.get("lega"), "rosa": giocatori,
                  "regole": regole, "notifiche_inviate": inviate, "ricalcolo_richiesto": None}]
+
+    def prepara(self):
+        pass
 
     def ultimo_consiglio(self, codice):
         file = ROOT / "output" / "consiglio.json"

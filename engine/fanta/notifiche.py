@@ -38,9 +38,11 @@ def messaggi(prec, nuovo, inviate, adesso):
     if nuovo.get("stato") != "pronto":
         return out
     g = str(nuovo["giornata"])
-    gia = set(inviate.get(g, []))
+    id_giornata = str(nuovo.get("chiave") or g)  # stagione+giornata: la giornata 1 di due stagioni è diversa
+    gia = set(inviate.get(id_giornata, []))
 
-    nuova_giornata = not prec or prec.get("stato") != "pronto" or prec.get("giornata") != nuovo["giornata"]
+    giornata_di = lambda c: c.get("chiave") or c.get("giornata")
+    nuova_giornata = not prec or prec.get("stato") != "pronto" or giornata_di(prec) != giornata_di(nuovo)
     if nuova_giornata:
         out.append({"titolo": f"Giornata {g}: consiglio pronto",
                     "testo": f"{_riassunto(nuovo)}. Uscite le probabili formazioni."})
@@ -70,7 +72,7 @@ def messaggi(prec, nuovo, inviate, adesso):
                 # Segna anche i promemoria meno urgenti: non ha senso mandarli dopo.
                 gia.update(k for k, _, _ in PROMEMORIA[i:])
                 break
-    inviate[g] = sorted(gia)
+    inviate[id_giornata] = sorted(gia)
     return out
 
 

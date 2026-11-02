@@ -56,3 +56,12 @@ def test_consiglio_pronto_a_ridosso_manda_solo_il_promemoria_piu_urgente():
 
 def test_nessuna_notifica_in_attesa():
     assert messaggi(consiglio(TIT), {"stato": "in_attesa", "giornata": 12}, {}, LUNEDI) == []
+
+
+def test_stessa_giornata_di_un_altra_stagione_e_nuova():
+    vecchio = {**consiglio(TIT, giornata=1), "chiave": 202601}
+    nuovo = {**consiglio(TIT, giornata=1), "chiave": 202701}
+    inviate = {"202601": ["30m", "3h"]}
+    out = messaggi(vecchio, nuovo, inviate, LUNEDI)
+    assert [n["titolo"] for n in out] == ["Giornata 1: consiglio pronto"]
+    assert "202701" in inviate

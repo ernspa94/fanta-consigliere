@@ -73,7 +73,9 @@ def griglia(righe):
         print(f"     {b:.4f}  {par}")
 
 
-def main(stagione="2026-27"):
+def main(stagione=None):
+    from .fonti import stagione_corrente
+    stagione = stagione or stagione_corrente()
     salvate = SP.carica(stagione)
     if not salvate:
         print("Nessuna giornata salvata in output/probabili: si riempie da sola a ogni giornata.")

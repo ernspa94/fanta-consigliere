@@ -15,6 +15,24 @@ UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML,
 CACHE = Path(__file__).resolve().parents[2] / "data" / "cache"
 ROMA = ZoneInfo("Europe/Rome")
 
+def stagione_corrente(oggi=None, indietro=0):
+    """Stagione di Serie A da usare oggi, es. '2026-27'. Da luglio si passa a quella nuova
+    (asta estiva, calendario). indietro=1 dà la stagione precedente."""
+    oggi = oggi or datetime.now(ROMA)
+    anno = (oggi.year if oggi.month >= 7 else oggi.year - 1) - indietro
+    return f"{anno}-{(anno + 1) % 100:02d}"
+
+
+def stagione_dopo(stagione):
+    anno = int(stagione[:4]) + 1
+    return f"{anno}-{(anno + 1) % 100:02d}"
+
+
+def chiave_giornata(stagione, giornata):
+    """Numero unico per giornata e stagione (202611 = giornata 11 del 2026-27): lo storico non mescola le stagioni."""
+    return int(stagione[:4]) * 100 + giornata
+
+
 # /serie-a/squadre/<squadra>/<giocatore>/<id>
 LINK_GIOCATORE = re.compile(r"/squadre/([^/]+)/[^/]+/(\d+)")
 
@@ -48,7 +66,11 @@ def _numero(testo):
 def leggi_probabili(html):
     """Partite della giornata e, per ogni giocatore citato, % di titolarità e stato."""
     soup = BeautifulSoup(html, "html.parser")
-    giornata = int(re.search(r"Giornata\s+(\d+)", soup.get_text()).group(1))
+    m = re.search(r"Giornata\s+(\d+)", soup.get_text())
+    giornata = int(m.group(1)) if m else None
+    # Di che stagione sono? D'estate la pagina mostra ancora l'ultima giornata della stagione finita.
+    m = re.search(r"Serie A (\d{4}-\d{2})", html)
+    stagione = m.group(1) if m else None
 
     partite, giocatori = [], {}
     for blocco in soup.select(".match.match-item"):
@@ -81,7 +103,7 @@ def leggi_probabili(html):
                 if nota:
                     info["nota"] = nota.get_text(" ", strip=True)
 
-    return {"giornata": giornata, "partite": partite, "giocatori": giocatori}
+    return {"giornata": giornata, "stagione": stagione, "partite": partite, "giocatori": giocatori}
 
 
 def leggi_statistiche(html):
@@ -142,12 +164,17 @@ def leggi_rigoristi(html):
     return out
 
 
-def inizio_giornata(giornata, stagione="2026-27"):
-    """Data e ora della prima partita della giornata (la pagina della giornata mostra quella)."""
-    soup = BeautifulSoup(scarica(f"/serie-a/calendario/{giornata}/{stagione}", max_eta_min=360), "html.parser")
-    box = soup.select_one("div.match-date")
-    data = box.select_one('meta[itemprop="startDate"]')["content"]
-    ora = box.select_one("span.hours").get_text(strip=True)
+def inizio_giornata(giornata, stagione=None):
+    """Data e ora della prima partita della giornata (la pagina della giornata mostra quella).
+    None se non è ancora fissata o la pagina non c'è (es. calendario della stagione nuova non ancora uscito)."""
+    try:
+        html = scarica(f"/serie-a/calendario/{giornata}/{stagione or stagione_corrente()}", max_eta_min=360)
+        box = BeautifulSoup(html, "html.parser").select_one("div.match-date")
+        data = box.select_one('meta[itemprop="startDate"]')["content"]
+        ora = box.select_one("span.hours").get_text(strip=True)
+    except Exception as e:
+        print(f"Orario della giornata {giornata} non disponibile: {e}")
+        return None
     if data.startswith("1970"):
         return None  # orario non ancora fissato
     return datetime.fromisoformat(f"{data}T{ora}").replace(tzinfo=ROMA)
@@ -173,12 +200,27 @@ def carica_sky(giornata, listone):
             "alias": alias}
 
 
-def carica_tutto(stagione="2026-27", stagione_prec="2025-26"):
+def _facoltativo(nome, funzione, predefinito):
+    """Una fonte secondaria che non risponde non deve fermare tutto."""
+    try:
+        return funzione()
+    except Exception as e:
+        print(f"{nome} non disponibile: {e}")
+        return predefinito
+
+
+def carica_tutto(stagione=None, stagione_prec=None):
+    stagione = stagione or stagione_corrente()
+    stagione_prec = stagione_prec or stagione_corrente(indietro=1)
     dati = {
+        "stagione": stagione,
         "probabili": leggi_probabili(scarica("/probabili-formazioni-serie-a")),
-        "stat": leggi_statistiche(scarica(f"/statistiche-serie-a/{stagione}", max_eta_min=360)),
-        "stat_prec": leggi_statistiche(scarica(f"/statistiche-serie-a/{stagione_prec}", max_eta_min=60 * 24 * 30)),
-        "rigoristi": leggi_rigoristi(scarica("/rigoristi-serie-a", max_eta_min=360)),
+        # A inizio stagione la pagina delle statistiche può non esserci ancora: si parte da zero.
+        "stat": _facoltativo("Statistiche della stagione",
+                             lambda: leggi_statistiche(scarica(f"/statistiche-serie-a/{stagione}", max_eta_min=360)), {}),
+        "stat_prec": _facoltativo("Statistiche della stagione precedente", lambda: leggi_statistiche(
+            scarica(f"/statistiche-serie-a/{stagione_prec}", max_eta_min=60 * 24 * 30)), {}),
+        "rigoristi": _facoltativo("Rigoristi", lambda: leggi_rigoristi(scarica("/rigoristi-serie-a", max_eta_min=360)), {}),
         "listone": leggi_listone(scarica("/quotazioni-fantacalcio", max_eta_min=360)),
     }
     dati["sky"] = carica_sky(dati["probabili"]["giornata"], dati["listone"])

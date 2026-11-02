@@ -28,7 +28,7 @@ def istantanea(dati):
             "ufficiali": sorted(sq for sq, uff in sky["squadre"].items() if uff), "giocatori": giocatori}
 
 
-def salva(dati, giornata, stagione="2026-27"):
+def salva(dati, giornata, stagione):
     """Aggiorna il file della giornata. Ritorna True se è cambiato qualcosa (oltre all'orario)."""
     file = CARTELLA / stagione / f"giornata-{giornata:02d}.json"
     vecchio = json.loads(file.read_text(encoding="utf-8")) if file.exists() else {}
@@ -46,7 +46,7 @@ def salva(dati, giornata, stagione="2026-27"):
     return True
 
 
-def carica(stagione="2026-27"):
+def carica(stagione):
     """{giornata: contenuto del file} per tutte le giornate salvate."""
     cartella = CARTELLA / stagione
     return {int(f.stem.split("-")[1]): json.loads(f.read_text(encoding="utf-8"))

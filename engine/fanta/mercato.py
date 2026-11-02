@@ -101,15 +101,21 @@ def fantavoto(c, bm):
     return fv
 
 
-def pubblica(dati, giornata, stato_giocatori, stagione="2026-27"):
-    """output/valori.json: componenti di tutto il listone, per la scheda Asta dell'app (dati pubblici)."""
+def pubblica(dati, info_giornata, stato_giocatori):
+    """output/valori.json: componenti di tutto il listone, per la scheda Asta dell'app (dati pubblici).
+    info_giornata: da consiglia.stato_giornata (giornata e stagione da consigliare)."""
+    giornata, stagione = info_giornata["giornata"], info_giornata["stagione"]
+    stat, stat_prec = dati["stat"], dati["stat_prec"]
+    if stagione != dati["stagione"]:
+        # Fine maggio-giugno: si guarda già alla stagione nuova, quella appena finita diventa "precedente".
+        stat, stat_prec = {}, dati["stat"]
     giocate = giornata - 1
     righe = SV.carica_stagione(stagione, giocate) if giocate > 0 else []
     # Per le presenze recenti contano solo le giornate finite: in una giornata in corso chi non ha
     # ancora giocato sembrerebbe assente.
     finite = [g for g in range(1, giocate + 1) if len({r["squadra"] for r in righe if r["giornata"] == g}) >= 20]
     ultima_finita = max(finite, default=0)
-    comp = componenti(dati["listone"], dati["stat"], dati["stat_prec"], giocate, dati.get("rigoristi"),
+    comp = componenti(dati["listone"], stat, stat_prec, giocate, dati.get("rigoristi"),
                       recenti=presenze_recenti(righe, ultima_finita) if ultima_finita > 0 else None)
     prezzi = {g["id"]: g for g in dati["listone"]}
     for c in comp:
@@ -122,7 +128,7 @@ def pubblica(dati, giornata, stato_giocatori, stagione="2026-27"):
         if info and info.get("stato") not in (None, "ok"):
             c["stato"] = info["stato"]
             c["nota"] = info.get("nota")
-    contenuto = {"giornata": giornata, "giornate_rimanenti": 38 - giornata + 1, "giocatori": comp}
+    contenuto = {"giornata": giornata, "stagione": stagione, "giornate_rimanenti": 38 - giornata + 1, "giocatori": comp}
     (ROOT / "output" / "valori.json").write_text(json.dumps(contenuto, ensure_ascii=False, separators=(",", ":")),
                                                  encoding="utf-8")
 
