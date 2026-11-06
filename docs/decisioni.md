@@ -121,6 +121,7 @@ Cosa la tiene accesa da sola:
 - **Estate**: finché la pagina delle probabili è della stagione finita, il consiglio resta "in attesa della 1ª giornata" (`consiglia.stato_giornata`); il motore continua a girare e il listone per l'asta da zero si aggiorna (con le statistiche della stagione prima).
 - **Consigli per stagione**: su Supabase la colonna `giornata` contiene la chiave stagione+giornata (202611 = giornata 11 del 2026-27), così la giornata 1 di due stagioni non si sovrascrive. Il menu dell'app mostra il numero e, se di un'altra stagione, anche la stagione.
 - **Fonti che cadono**: statistiche, stagione precedente, rigoristi e Sky sono facoltativi (si va avanti senza); senza la pagina delle probabili il giro fallisce e riprova al successivo.
+- **Orologio**: il cron di GitHub è "a sforzo" e nei fatti salta molti giri (a novembre 2026: 3-4 al giorno invece di 96). Il giro ogni 15 minuti lo manda Supabase con pg_cron (`supabase/programma.sql`), come avvio manuale con `programmato=true`; decide poi `pianifica.py`. Il cron di GitHub resta come riserva. Serve il token GitHub nel Vault (`github_token`, fine-grained, solo questo repository, permesso "Actions: Read and write"): **quando scade il token si fermano sia il giro ogni 15 minuti sia il pulsante Ricalcola**, quindi va rinnovato prima della scadenza.
 - **GitHub (60 giorni)**: GitHub spegne i giri programmati dopo 60 giorni senza attività. Ogni giorno alle 3 (UTC) il workflow si riattiva da solo (`gh workflow enable`), e il battito quotidiano fa comunque un commit.
 - **Supabase (7 giorni)**: il piano gratuito mette in pausa i progetti fermi da una settimana. `pianifica.py` lo interroga ogni 15 minuti, quindi resta sveglio finché gira il workflow.
 - **Battito**: `output/battito.json` cambia una volta al giorno se il motore ha girato senza errori. Se è fermo da 2 giorni o più, l'app mostra un avviso giallo in alto.
@@ -129,5 +130,6 @@ Cosa la tiene accesa da sola:
 Cosa fare se compare l'avviso "aggiornamenti fermi":
 1. GitHub → repository `fanta-consigliere` → **Actions** → "Aggiorna consiglio formazione". Se c'è un banner "This scheduled workflow is disabled", premi **Enable workflow**.
 2. Se i giri sono rossi, apri l'ultimo e leggi l'errore. Di solito è cambiata una pagina delle fonti (selettori in `engine/fanta/fonti.py` o `sky.py`).
-3. Se l'errore parla di Supabase (connessione rifiutata, 540, "paused"): supabase.com → progetto → **Restore project**. I dati restano.
-4. Per provare subito: Actions → "Run workflow" (anche con il codice di una squadra).
+3. Se i giri sono pochi o il pulsante Ricalcola risponde "in coda": nel SQL Editor di Supabase controlla le risposte di GitHub (query in fondo a `supabase/programma.sql`). 401 = token scaduto: creane uno nuovo e aggiornalo con `select vault.update_secret((select id from vault.secrets where name = 'github_token'), 'NUOVO_TOKEN');`.
+4. Se l'errore parla di Supabase (connessione rifiutata, 540, "paused"): supabase.com → progetto → **Restore project**. I dati restano.
+5. Per provare subito: Actions → "Run workflow" (anche con il codice di una squadra).

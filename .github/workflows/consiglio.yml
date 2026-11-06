@@ -15,6 +15,10 @@ on:
         description: "Manda solo una notifica di prova"
         type: boolean
         default: false
+      programmato:
+        description: "Giro programmato (lo manda Supabase ogni 15 minuti): decide pianifica.py se ricalcolare"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -31,6 +35,7 @@ env:
   PUSH_ISCRIZIONI: ${{ secrets.PUSH_ISCRIZIONI }}
   # Arriva da fuori (pulsante Ricalcola): si usa solo come variabile, mai dentro il comando.
   CODICE: ${{ inputs.codice }}
+  PROGRAMMATO: ${{ inputs.programmato }}
 
 jobs:
   aggiorna:
@@ -42,7 +47,7 @@ jobs:
       - name: Tieni acceso il giro programmato
         # GitHub spegne i giri programmati dopo 60 giorni senza attività nel repository (d'estate, o se
         # il calcolo si rompe e non arrivano più commit). Riattivarlo una volta al giorno azzera il conto.
-        if: github.event_name == 'schedule'
+        if: github.event_name == 'schedule' || inputs.programmato
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

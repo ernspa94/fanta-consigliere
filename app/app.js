@@ -877,7 +877,7 @@ async function ricalcola() {
     $("ricalcolo-stato").textContent = {
       avviato: "Ricalcolo avviato: il consiglio si aggiorna tra 1–2 minuti.",
       gia_richiesto: "Ricalcolo già in corso…",
-      in_coda: "Ricalcolo in coda: il consiglio si aggiorna entro 15 minuti.",
+      in_coda: "Ricalcolo in coda: il consiglio si aggiorna al prossimo giro automatico.",
     }[esito] || esito;
     attendiRicalcolo(squadra.codice);
   } catch (e) {

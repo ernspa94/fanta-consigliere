@@ -36,7 +36,11 @@ if __name__ == "__main__":
     except Exception as e:  # se Supabase non risponde si va avanti con l'orario
         print(f"Controllo ricalcoli non riuscito: {e}")
         in_sospeso = False
-    risultato = os.environ.get("GITHUB_EVENT_NAME") != "schedule" or esegui(
+    # Il cron di GitHub è inaffidabile (a volte 3-4 giri al giorno): il giro ogni 15 minuti lo manda
+    # Supabase (supabase/programma.sql) come workflow_dispatch con programmato=true. Gli altri avvii manuali
+    # (pulsante Ricalcola, Actions → Run workflow) ricalcolano sempre.
+    programmato = os.environ.get("GITHUB_EVENT_NAME") == "schedule" or os.environ.get("PROGRAMMATO") == "true"
+    risultato = not programmato or esegui(
         datetime.now(timezone.utc), scadenza, in_sospeso)
     riga = f"esegui={'true' if risultato else 'false'}"
     if os.environ.get("GITHUB_OUTPUT"):
