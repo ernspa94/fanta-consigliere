@@ -1,7 +1,7 @@
 {
-  "giornata": 11,
+  "giornata": 12,
   "stagione": "2026-27",
-  "pronta": true,
-  "inizio": "2026-11-06T20:45:00+01:00",
-  "scadenza": "2026-11-06T20:44:00+01:00"
+  "pronta": false,
+  "inizio": "2026-11-21T15:00:00+01:00",
+  "scadenza": "2026-11-21T14:59:00+01:00"
 }
