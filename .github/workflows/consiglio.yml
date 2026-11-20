@@ -58,6 +58,8 @@ jobs:
       - name: Serve ricalcolare?
         id: piano
         working-directory: engine
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           if [ "${{ inputs.prova }}" = "true" ]; then echo "esegui=false" >> "$GITHUB_OUTPUT"; exit 0; fi
           python3 -m fanta.pianifica
@@ -92,7 +94,7 @@ jobs:
         working-directory: engine
         run: python -m pytest -q tests
 
-      - name: Calcola i consigli e manda le notifiche
+      - name: Calcola i consigli e manda le notifiche  # pianifica.py cerca questo nome (PASSO_CALCOLO)
         if: steps.piano.outputs.esegui == 'true'
         working-directory: engine
         run: python -m fanta.consiglia ${CODICE:+--codice "$CODICE"}
